@@ -578,7 +578,7 @@ def do_check_repo(self, subcmd, opts, *args):
                                    skip_cycle=opts.skipcycle,
                                    debug=opts.verbose)
         except Exception as e:
-            print 'ERROR -- An exception happends while checking a group [%s]' % e
+            print 'ERROR -- An exception happened while checking a group [%s]' % e
             if conf.config['debug']:
                 print traceback.format_exc()
         print
