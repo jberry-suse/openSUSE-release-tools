@@ -554,7 +554,7 @@ class CheckRepo(object):
                                                request.verifymd5)
         except urllib2.HTTPError as e:
             if 300 <= e.code <= 499:
-                print ' - The request is not built agains this project'
+                print ' - The request is not built against this project'
                 return repos_to_check
             raise e
 
