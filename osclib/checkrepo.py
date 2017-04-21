@@ -22,6 +22,7 @@ import urllib2
 from xml.etree import cElementTree as ET
 from pprint import pformat
 
+import osc.core
 from osc.core import get_binary_file
 from osc.core import http_DELETE
 from osc.core import http_GET
@@ -45,7 +46,7 @@ class Request(object):
                  revision=None, srcmd5=None, verifymd5=None,
                  group=None, goodrepos=None, missings=None,
                  is_shadow=None, shadow_src_project=None,
-                 element=None):
+                 element=None, staging=None):
 
         self.request_id = request_id
         self.src_project = src_project
@@ -70,9 +71,9 @@ class Request(object):
         self.i686_only = ['glibc.i686']
 
         if element:
-            self.load(element)
+            self.load(element, staging)
 
-    def load(self, element):
+    def load(self, element, staging):
         """Load a node from a ElementTree request XML element."""
         self.request_id = int(element.get('id'))
 
@@ -100,7 +101,11 @@ class Request(object):
         _is_product = re.match(r'openSUSE:Leap:\d{2}.\d', self.tgt_project)
         if self.src_project == 'openSUSE:Factory' and _is_product:
             self.is_shadow_devel = True
-            self.shadow_src_project = '%s:Staging:repochecker' % self.tgt_project
+            devel = staging.get_devel_project(self.src_project, self.src_package)
+            if devel:
+                self.shadow_src_project = devel
+            else:
+                self.shadow_src_project = '%s:Staging:repochecker' % self.tgt_project
         else:
             self.is_shadow_devel = False
             self.shadow_src_project = self.src_project
@@ -404,7 +409,7 @@ class CheckRepo(object):
             self.change_review_state(request_id, 'declined', message=msg)
             return requests
 
-        rq = Request(element=request)
+        rq = Request(element=request, staging=self.staging)
 
         if rq.action_type != 'submit' and rq.action_type != 'delete':
             msg = 'Unchecked request type %s' % rq.action_type
@@ -559,12 +564,13 @@ class CheckRepo(object):
             raise e
 
         root = ET.fromstring(root_xml)
+        archs = self.product_target_archs()
         for repo in root.findall('repository'):
             valid_intel_repo = True
             intel_archs = []
 
             for a in repo.findall('arch'):
-                if a.attrib['arch'] not in ('i586', 'x86_64'):
+                if a.attrib['arch'] not in archs:
                     # It is not a common Factory i586/x86_64 build repository
                     # probably builds on ARM, PPC or images
                     valid_intel_repo = False
@@ -585,12 +591,24 @@ class CheckRepo(object):
             for repo in more_repo_candidates:
                 rpms = []
                 # check if x86_64 package is exist
-                rpms = self.get_package_list_from_repository(request.shadow_src_project, repo.attrib['name'], 'x86_64', request.src_package)
-                if rpms:
-                    # valid candidate
-                    repos_to_check.append(repo)
+                for arch in archs:
+                    rpms = self.get_package_list_from_repository(request.shadow_src_project, repo.attrib['name'], arch, request.src_package)
+
+                    if rpms:
+                        # valid candidate
+                        repos_to_check.append(repo)
+                        break
 
         return repos_to_check
+
+    @memoize(session=True)
+    def product_target_archs(self):
+        meta = osc.core.show_project_meta(self.apiurl, self.project)
+        meta = ET.fromstring(''.join(meta))
+        archs = []
+        for arch in meta.findall('repository[@name="standard"]/arch'):
+            archs.append(arch.text)
+        return archs
 
     def is_binary(self, project, repository, arch, package):
         """Return True if is a binary package."""
@@ -802,11 +820,11 @@ class CheckRepo(object):
                                 arch.attrib['arch'],
                                 package):
                             missings.append(package)
-                if arch.attrib['result'] not in ('succeeded', 'excluded'):
+                if arch.attrib['result'] not in ('succeeded', 'excluded', 'unknown'):
                     isgood = False
                 if arch.attrib['result'] == 'disabled':
                     founddisabled = True
-                if arch.attrib['result'] == 'failed' or arch.attrib['result'] == 'unknown':
+                if arch.attrib['result'] == 'failed':
                     # Sometimes an unknown status is equivalent to
                     # disabled, but we map it as failed to have a human
                     # check (no autoreject)
