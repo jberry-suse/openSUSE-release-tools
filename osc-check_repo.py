@@ -101,12 +101,11 @@ def _check_repo_download(self, request, arch=None):
 
         toignore.update(fn[1] for fn in pkglist)
 
-        if self.checkrepo.staging.crings:
+        if self.checkrepo.staging.crings and arch == 'x86_64':
             pkglist = self.checkrepo.get_package_list_from_repository(
-                request.group + ':DVD', 'standard',
-                'x86_64', request.src_package)
+                request.group + ':DVD', 'standard', arch, request.src_package)
             todownload = [ToDownload(request.group + ':DVD', 'standard',
-                                    'x86_64', fn[0], fn[3]) for fn in pkglist]
+                                    arch, fn[0], fn[3]) for fn in pkglist]
 
             toignore.update(fn[1] for fn in pkglist)
 
