@@ -43,7 +43,7 @@ from osclib.request_finder import RequestFinder
 Cache.CACHE_DIR = save_cache_path('opensuse-repo-checker-http')
 
 
-def _check_repo_download(self, request):
+def _check_repo_download(self, request, arch=None):
     toignore = set()
     request.downloads = defaultdict(list)
 
@@ -51,8 +51,10 @@ def _check_repo_download(self, request):
     if request.build_excluded:
         return set()
 
-    # XXX TODO - Rewrite the logic here, meanwhile set is to x86_64
-    arch = 'x86_64'
+    if not arch:
+        for arch in self.checkrepo.product_target_archs():
+            toignore.update(self._check_repo_download(request, arch))
+        return toignore
 
     if request.src_package in request.i686_only:
         # Use imported binaries from x86_64 to check the requirements is fine,
@@ -99,17 +101,18 @@ def _check_repo_download(self, request):
 
         toignore.update(fn[1] for fn in pkglist)
 
-        pkglist = self.checkrepo.get_package_list_from_repository(
-            request.group + ':DVD', 'standard',
-            'x86_64', request.src_package)
-        todownload = [ToDownload(request.group + ':DVD', 'standard',
-                                 'x86_64', fn[0], fn[3]) for fn in pkglist]
+        if self.checkrepo.staging.crings:
+            pkglist = self.checkrepo.get_package_list_from_repository(
+                request.group + ':DVD', 'standard',
+                'x86_64', request.src_package)
+            todownload = [ToDownload(request.group + ':DVD', 'standard',
+                                    'x86_64', fn[0], fn[3]) for fn in pkglist]
 
-        toignore.update(fn[1] for fn in pkglist)
+            toignore.update(fn[1] for fn in pkglist)
 
-        self.checkrepo._download(request, todownload)
-        if request.error:
-            return set()
+            self.checkrepo._download(request, todownload)
+            if request.error:
+                return set()
 
     # Update toignore with the names of the source project (here in
     # this method) and with the names of the target project (_toignore
@@ -426,7 +429,8 @@ def _check_repo_group(self, id_, requests, skip_cycle=None, debug=False):
         if not hasattr(rq, 'goodrepo'):
             msg = 'Can not find a good repo for %s' % rq.str_compact()
             print 'NOT ACCEPTED - ', msg
-            print 'Perhaps this request is not against i586/x86_64 build or i586 build only. For human to check!'
+            print 'Perhaps this request is not against {}. For human to check!'.format(
+                ', '.join(self.repochecker.product_target_archs()))
             continue
         msg = 'Builds for repo %s' % rq.goodrepo
         print 'ACCEPTED', msg

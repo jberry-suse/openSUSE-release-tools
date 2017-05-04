@@ -100,11 +100,12 @@ class Request(object):
         # release, and adjust the source and target projects
         _is_product = re.match(r'openSUSE:Leap:\d{2}.\d', self.tgt_project)
         if self.src_project == 'openSUSE:Factory' and _is_product:
-            self.is_shadow_devel = True
             devel = staging.get_devel_project(self.src_project, self.src_package)
             if devel:
+                self.is_shadow_devel = False
                 self.shadow_src_project = devel
             else:
+                self.is_shadow_devel = True
                 self.shadow_src_project = '%s:Staging:repochecker' % self.tgt_project
         else:
             self.is_shadow_devel = False
@@ -564,40 +565,15 @@ class CheckRepo(object):
             raise e
 
         root = ET.fromstring(root_xml)
-        archs = self.product_target_archs()
+        archs_target = self.product_target_archs()
         for repo in root.findall('repository'):
-            valid_intel_repo = True
-            intel_archs = []
+            archs_found = 0
+            for arch in repo.findall('arch'):
+                if arch.attrib['arch'] in archs_target:
+                    archs_found += 1
 
-            for a in repo.findall('arch'):
-                if a.attrib['arch'] not in archs:
-                    # It is not a common Factory i586/x86_64 build repository
-                    # probably builds on ARM, PPC or images
-                    valid_intel_repo = False
-                else:
-                    # We assume it is standard Factory i586/x86_64 build repository
-                    intel_archs.append(a)
-
-            if not valid_intel_repo:
-                if len(intel_archs) == 2:
-                    # the possible repo candidate ie. complex build repos layout includes i586 and x86_64
-                    more_repo_candidates.append(repo)
-                continue
-
-            if len(intel_archs) == 2:
+            if archs_found == len(archs_target):
                 repos_to_check.append(repo)
-
-        if more_repo_candidates:
-            for repo in more_repo_candidates:
-                rpms = []
-                # check if x86_64 package is exist
-                for arch in archs:
-                    rpms = self.get_package_list_from_repository(request.shadow_src_project, repo.attrib['name'], arch, request.src_package)
-
-                    if rpms:
-                        # valid candidate
-                        repos_to_check.append(repo)
-                        break
 
         return repos_to_check
 
@@ -694,16 +670,13 @@ class CheckRepo(object):
     def _toignore(self, request):
         """Return the list of files to ignore during the checkrepo."""
         toignore = set()
-        for fn in self.get_package_list_from_repository(
-                request.tgt_project, 'standard', 'x86_64', request.tgt_package):
-            if fn[1]:
-                toignore.add(fn[1])
+        for arch in self.product_target_archs():
+            for fn in self.get_package_list_from_repository(
+                request.tgt_project, 'standard', arch, request.tgt_package):
+                # On i586 only exclude -32bit packages.
+                if fn[1] and (arch != 'i586' or fn[2] == 'x86_64'):
+                    toignore.add(fn[1])
 
-        # now fetch -32bit pack list
-        for fn in self.get_package_list_from_repository(
-                request.tgt_project, 'standard', 'i586', request.tgt_package):
-            if fn[1] and fn[2] == 'x86_64':
-                toignore.add(fn[1])
         return toignore
 
     def _disturl(self, filename):
@@ -785,7 +758,7 @@ class CheckRepo(object):
             return False
 
         if not repos_to_check:
-            msg = 'Missing i586 and x86_64 in the repo list'
+            msg = 'Missing {} in the repo list'.format(', '.join(self.product_target_archs()))
             print ' - %s' % msg
             self.change_review_state(request.request_id, 'new', message=msg)
             # Next line not needed, but for documentation.
@@ -797,6 +770,7 @@ class CheckRepo(object):
         foundbuilding = None
         foundfailed = None
 
+        archs_target = self.product_target_archs()
         for repository in repos_to_check:
             repo_name = repository.attrib['name']
             self.debug("checking repo", ET.tostring(repository))
@@ -806,10 +780,10 @@ class CheckRepo(object):
             r_foundfailed = None
             missings = []
             for arch in repository.findall('arch'):
-                if arch.attrib['arch'] not in ('i586', 'x86_64'):
+                if arch.attrib['arch'] not in archs_target:
                     continue
                 if arch.attrib['result'] == 'excluded':
-                    if ((arch.attrib['arch'] == 'x86_64' and request.src_package not in request.i686_only) or
+                    if ((arch.attrib['arch'] != 'i586' and request.src_package not in request.i686_only) or
                        (arch.attrib['arch'] == 'i586' and request.src_package in request.i686_only)):
                         request.build_excluded = True
                 if 'missing' in arch.attrib:
@@ -820,7 +794,7 @@ class CheckRepo(object):
                                 arch.attrib['arch'],
                                 package):
                             missings.append(package)
-                if arch.attrib['result'] not in ('succeeded', 'excluded', 'unknown'):
+                if arch.attrib['result'] not in ('succeeded', 'unknown'):
                     isgood = False
                 if arch.attrib['result'] == 'disabled':
                     founddisabled = True
@@ -837,7 +811,7 @@ class CheckRepo(object):
                 # and the build state per srcmd5 was outdated also.
                 if request.src_package == 'glibc.i686':
                     if ((arch.attrib['arch'] == 'i586' and arch.attrib['result'] == 'outdated') or
-                       (arch.attrib['arch'] == 'x86_64' and arch.attrib['result'] == 'excluded')):
+                       (arch.attrib['arch'] != 'i586' and arch.attrib['result'] == 'excluded')):
                         isgood = True
                         continue
                 if arch.attrib['result'] == 'outdated':
@@ -869,7 +843,7 @@ class CheckRepo(object):
             return True
 
         if alldisabled:
-            msg = '%s is disabled or does not build against factory. Please fix and resubmit' % request.src_package
+            msg = '%s is disabled or does not build against target project. Please fix and resubmit' % request.src_package
             print '[DECLINED]', msg
             self.change_review_state(request.request_id, 'declined', message=msg)
             # Next line not needed, but for documentation
@@ -955,7 +929,7 @@ class CheckRepo(object):
             'package': request.tgt_package,
             'view': 'revpkgnames',
         }
-        for arch in ('i586', 'x86_64'):
+        for arch in self.product_target_archs():
             url = makeurl(self.apiurl, ('build', request.tgt_project, 'standard', arch, '_builddepinfo'),
                           query=query)
             root = ET.parse(http_GET(url)).getroot()
@@ -968,7 +942,7 @@ class CheckRepo(object):
         query = {
             'package': package,
         }
-        for arch in ('i586', 'x86_64'):
+        for arch in self.product_target_archs():
             url = makeurl(self.apiurl, ('build', project, 'standard', arch, '_builddepinfo'),
                           query=query)
             root = ET.parse(http_GET(url)).getroot()
