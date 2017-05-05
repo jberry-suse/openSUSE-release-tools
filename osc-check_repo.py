@@ -43,18 +43,13 @@ from osclib.request_finder import RequestFinder
 Cache.CACHE_DIR = save_cache_path('opensuse-repo-checker-http')
 
 
-def _check_repo_download(self, request, arch=None):
+def _check_repo_download(self, request, arch):
     toignore = set()
     request.downloads = defaultdict(list)
 
     # do not check package lists if the repository was excluded
     if request.build_excluded:
         return set()
-
-    if not arch:
-        for arch in self.checkrepo.target_archs():
-            toignore.update(self._check_repo_download(request, arch))
-        return toignore
 
     if request.src_package in request.i686_only and arch != 'i586':
         # Use imported binaries from x86_64 to check the requirements is fine,
@@ -147,7 +142,7 @@ def _check_repo_group(self, id_, requests, arch, skip_cycle=None, debug=False):
         if request.action_type == 'delete':
             continue
 
-        i = self._check_repo_download(request)
+        i = self._check_repo_download(request, arch)
         if request.error and request.error not in _errors_printed:
             _errors_printed.add(request.error)
             if not request.updated:
@@ -200,7 +195,7 @@ def _check_repo_group(self, id_, requests, arch, skip_cycle=None, debug=False):
             # we need to call it to fetch the good repos to download
             # but the return value is of no interest right now.
             self.checkrepo.is_buildsuccess(rq)
-            i = self._check_repo_download(rq)
+            i = self._check_repo_download(rq, arch)
             if rq.error:
                 print 'ERROR (ALREADY ACEPTED?):', rq.error
                 rq.updated = True
@@ -449,6 +444,7 @@ def _mirror_full(self, plugin_dir, repo_dir, arch):
     if not os.path.exists(repo_dir):
         os.mkdir(repo_dir)
 
+    print('mirroring {}'.format('/'.join((self.checkrepo.project, 'standard', arch))))
     script = 'LC_ALL=C perl %s/bs_mirrorfull --nodebug %s %s' % (plugin_dir, url, repo_dir)
     os.system(script)
 
@@ -580,6 +576,7 @@ def do_check_repo(self, subcmd, opts, *args):
     # Sort the groups, from high to low. This put first the stating
     # projects also
     for arch in self.checkrepo.target_archs():
+        print('analysis of {}'.format(arch))
         for id_, reqs in sorted(groups.items(), reverse=True):
             try:
                 self._check_repo_group(id_, reqs, arch,
