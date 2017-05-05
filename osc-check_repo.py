@@ -52,22 +52,17 @@ def _check_repo_download(self, request, arch=None):
         return set()
 
     if not arch:
-        for arch in self.checkrepo.product_target_archs():
+        for arch in self.checkrepo.target_archs():
             toignore.update(self._check_repo_download(request, arch))
         return toignore
 
-    if request.src_package in request.i686_only:
+    if request.src_package in request.i686_only and arch != 'i586':
         # Use imported binaries from x86_64 to check the requirements is fine,
         # but we can not get rpmlint.log from x86_64 repo if it was excluded,
         # i586 repo should be are build succeeded already as we have check it
         # in repositories_to_check(). Therefore, we have to download binary
         # binary files from i586 repo.
-        arch = 'i586'
-
-    # if not request.build_excluded:
-    #     arch = 'x86_64'
-    # else:
-    #     arch = 'i586'
+        return toignore
 
     ToDownload = namedtuple('ToDownload', ('project', 'repo', 'arch', 'package', 'size'))
 
@@ -88,7 +83,9 @@ def _check_repo_download(self, request, arch=None):
             return set()
 
     staging_prefix = '{}:'.format(self.checkrepo.staging.cstaging)
-    if staging_prefix in str(request.group):
+    if (str(request.group).startswith(staging_prefix) and
+        arch in self.checkrepo.target_archs(request.group)
+    ):
         pkglist = self.checkrepo.get_package_list_from_repository(
             request.group, 'standard', arch,
             request.src_package)
@@ -101,11 +98,15 @@ def _check_repo_download(self, request, arch=None):
 
         toignore.update(fn[1] for fn in pkglist)
 
-        if self.checkrepo.staging.crings and arch == 'x86_64':
+        project_dvd = request.group + ':DVD'
+        if (not self.checkrepo.staging.is_adi_project(request.group) and
+            self.checkrepo.staging.crings and
+            arch in self.checkrepo.target_archs(project_dvd)
+        ):
             pkglist = self.checkrepo.get_package_list_from_repository(
-                request.group + ':DVD', 'standard', arch, request.src_package)
-            todownload = [ToDownload(request.group + ':DVD', 'standard',
-                                    arch, fn[0], fn[3]) for fn in pkglist]
+                project_dvd, 'standard', arch, request.src_package)
+            todownload = [ToDownload(project_dvd, 'standard', arch, fn[0],
+                                     fn[3]) for fn in pkglist]
 
             toignore.update(fn[1] for fn in pkglist)
 
@@ -124,7 +125,7 @@ def _check_repo_download(self, request, arch=None):
 _errors_printed = set()
 
 
-def _check_repo_group(self, id_, requests, skip_cycle=None, debug=False):
+def _check_repo_group(self, id_, requests, arch, skip_cycle=None, debug=False):
     if skip_cycle is None:
         skip_cycle = []
 
@@ -364,7 +365,8 @@ def _check_repo_group(self, id_, requests, skip_cycle=None, debug=False):
                 os.symlink(d, target)
 
         repochecker = os.path.join(PLUGINDIR, 'repo-checker.pl')
-        civs = "LC_ALL=C perl %s '%s' -r %s -f %s" % (repochecker, destdir, self.repo_dir, params_file.name)
+        repo_dir = self.repo_dir + '-' + arch
+        civs = "LC_ALL=C perl %s '%s' -r %s -f %s" % (repochecker, destdir, repo_dir, params_file.name)
         p = subprocess.Popen(civs, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True)
         stdoutdata, stderrdata = p.communicate()
         stdoutdata = stdoutdata.strip()
@@ -429,7 +431,7 @@ def _check_repo_group(self, id_, requests, skip_cycle=None, debug=False):
             msg = 'Can not find a good repo for %s' % rq.str_compact()
             print 'NOT ACCEPTED - ', msg
             print 'Perhaps this request is not against {}. For human to check!'.format(
-                ', '.join(self.repochecker.product_target_archs()))
+                ', '.join(self.repochecker.target_archs()))
             continue
         msg = 'Builds for repo %s' % rq.goodrepo
         print 'ACCEPTED', msg
@@ -439,10 +441,11 @@ def _check_repo_group(self, id_, requests, skip_cycle=None, debug=False):
         updated[rq.request_id] = 1
 
 
-def _mirror_full(self, plugin_dir, repo_dir):
+def _mirror_full(self, plugin_dir, repo_dir, arch):
     """Call bs_mirrorfull script to mirror packages."""
-    url = 'https://api.opensuse.org/public/build/%s/%s/x86_64' % (self.checkrepo.project, 'standard')
+    url = 'https://api.opensuse.org/public/build/%s/%s/%s' % (self.checkrepo.project, 'standard', arch)
 
+    repo_dir += '-' + arch
     if not os.path.exists(repo_dir):
         os.mkdir(repo_dir)
 
@@ -565,8 +568,9 @@ def do_check_repo(self, subcmd, opts, *args):
         groups[request.group] = rqs
 
     # Mirror the packages locally in the CACHEDIR
-    self.repo_dir = '%s/repo-%s-%s-x86_64' % (CACHEDIR, 'openSUSE:{}'.format(opts.project), 'standard')
-    self._mirror_full(PLUGINDIR, self.repo_dir)
+    self.repo_dir = '%s/repo-%s-%s' % (CACHEDIR, 'openSUSE:{}'.format(opts.project), 'standard')
+    for arch in self.checkrepo.target_archs():
+        self._mirror_full(PLUGINDIR, self.repo_dir, arch)
 
     print
     print 'Analysis results'
@@ -575,14 +579,15 @@ def do_check_repo(self, subcmd, opts, *args):
 
     # Sort the groups, from high to low. This put first the stating
     # projects also
-    for id_, reqs in sorted(groups.items(), reverse=True):
-        try:
-            self._check_repo_group(id_, reqs,
-                                   skip_cycle=opts.skipcycle,
-                                   debug=opts.verbose)
-        except Exception as e:
-            print 'ERROR -- An exception happened while checking a group [%s]' % e
-            if conf.config['debug']:
-                print traceback.format_exc()
-        print
-        print
+    for arch in self.checkrepo.target_archs():
+        for id_, reqs in sorted(groups.items(), reverse=True):
+            try:
+                self._check_repo_group(id_, reqs, arch,
+                                    skip_cycle=opts.skipcycle,
+                                    debug=opts.verbose)
+            except Exception as e:
+                print 'ERROR -- An exception happened while checking a group [%s]' % e
+                if conf.config['debug']:
+                    print traceback.format_exc()
+            print
+            print

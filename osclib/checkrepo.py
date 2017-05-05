@@ -565,7 +565,7 @@ class CheckRepo(object):
             raise e
 
         root = ET.fromstring(root_xml)
-        archs_target = self.product_target_archs()
+        archs_target = self.target_archs()
         for repo in root.findall('repository'):
             archs_found = 0
             for arch in repo.findall('arch'):
@@ -578,8 +578,10 @@ class CheckRepo(object):
         return repos_to_check
 
     @memoize(session=True)
-    def product_target_archs(self):
-        meta = osc.core.show_project_meta(self.apiurl, self.project)
+    def target_archs(self, project=None):
+        if not project: project = self.project
+
+        meta = osc.core.show_project_meta(self.apiurl, project)
         meta = ET.fromstring(''.join(meta))
         archs = []
         for arch in meta.findall('repository[@name="standard"]/arch'):
@@ -670,7 +672,7 @@ class CheckRepo(object):
     def _toignore(self, request):
         """Return the list of files to ignore during the checkrepo."""
         toignore = set()
-        for arch in self.product_target_archs():
+        for arch in self.target_archs():
             for fn in self.get_package_list_from_repository(
                 request.tgt_project, 'standard', arch, request.tgt_package):
                 # On i586 only exclude -32bit packages.
@@ -758,7 +760,7 @@ class CheckRepo(object):
             return False
 
         if not repos_to_check:
-            msg = 'Missing {} in the repo list'.format(', '.join(self.product_target_archs()))
+            msg = 'Missing {} in the repo list'.format(', '.join(self.target_archs()))
             print ' - %s' % msg
             self.change_review_state(request.request_id, 'new', message=msg)
             # Next line not needed, but for documentation.
@@ -770,7 +772,7 @@ class CheckRepo(object):
         foundbuilding = None
         foundfailed = None
 
-        archs_target = self.product_target_archs()
+        archs_target = self.target_archs()
         for repository in repos_to_check:
             repo_name = repository.attrib['name']
             self.debug("checking repo", ET.tostring(repository))
@@ -929,7 +931,7 @@ class CheckRepo(object):
             'package': request.tgt_package,
             'view': 'revpkgnames',
         }
-        for arch in self.product_target_archs():
+        for arch in self.target_archs():
             url = makeurl(self.apiurl, ('build', request.tgt_project, 'standard', arch, '_builddepinfo'),
                           query=query)
             root = ET.parse(http_GET(url)).getroot()
@@ -942,7 +944,7 @@ class CheckRepo(object):
         query = {
             'package': package,
         }
-        for arch in self.product_target_archs():
+        for arch in self.target_archs():
             url = makeurl(self.apiurl, ('build', project, 'standard', arch, '_builddepinfo'),
                           query=query)
             root = ET.parse(http_GET(url)).getroot()
