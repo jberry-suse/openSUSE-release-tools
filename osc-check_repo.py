@@ -124,14 +124,10 @@ def _check_repo_group(self, id_, requests, arch, skip_cycle=None, debug=False):
     if skip_cycle is None:
         skip_cycle = []
 
-    print '> Check group [%s]' % ', '.join(r.str_compact() for r in requests)
 
     # XXX TODO - If the requests comes from command line, the group is
     # still not there.
 
-    # Do not continue if any of the packages do not successfully build.
-    if not all(self.checkrepo.is_buildsuccess(r) for r in requests if r.action_type != 'delete'):
-        return
 
     toignore = set()
     destdir = os.path.join(BINCACHE, str(requests[0].group))
@@ -575,16 +571,24 @@ def do_check_repo(self, subcmd, opts, *args):
 
     # Sort the groups, from high to low. This put first the stating
     # projects also
-    for arch in self.checkrepo.target_archs():
-        print('analysis of {}'.format(arch))
-        for id_, reqs in sorted(groups.items(), reverse=True):
-            try:
+    for id_, reqs in sorted(groups.items(), reverse=True):
+        print '> Check group [%s]' % ', '.join(r.str_compact() for r in requests)
+
+        try:
+            # Do not continue if any of the packages do not successfully build.
+            if not all(self.checkrepo.is_buildsuccess(r) for r in reqs if r.action_type != 'delete'):
+                return
+
+            for arch in self.checkrepo.target_archs():
+                print
+                print('Arch: {}\n'.format(arch))
+
                 self._check_repo_group(id_, reqs, arch,
                                     skip_cycle=opts.skipcycle,
                                     debug=opts.verbose)
-            except Exception as e:
-                print 'ERROR -- An exception happened while checking a group [%s]' % e
-                if conf.config['debug']:
-                    print traceback.format_exc()
-            print
-            print
+        except Exception as e:
+            print 'ERROR -- An exception happened while checking a group [%s]' % e
+            if conf.config['debug']:
+                print traceback.format_exc()
+        print
+        print
