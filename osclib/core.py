@@ -12,7 +12,9 @@ from osc.core import owner
 from osc.core import show_project_meta
 from osclib.memoize import memoize
 
-BinaryParsed = namedtuple('BinaryParsed', ('filename', 'name', 'arch'))
+BINARY_REGEX = r'(?:.*::)?(?P<filename>(?P<name>.*?)-(?P<version>[^-]+)-(?P<release>[^-]+)\.(?P<arch>[^-\.]+))'
+RPM_REGEX = BINARY_REGEX + '\.rpm'
+BinaryParsed = namedtuple('BinaryParsed', ('filename', 'name', 'arch', 'package'))
 
 
 @memoize(session=True)
@@ -91,7 +93,7 @@ def request_staged(request):
 def binary_list(apiurl, project, repository, arch, package=None):
     parsed = []
     for binary in get_binarylist(apiurl, project, repository, arch, package):
-        result = re.match(r'(.*)-([^-]*)-([^-]*)\.([^-\.]+)\.rpm', binary)
+        result = re.match(RPM_REGEX, binary)
         if not result:
             continue
 
@@ -103,6 +105,28 @@ def binary_list(apiurl, project, repository, arch, package=None):
         if result.group(4) == 'src':
             continue
 
-        parsed.append(BinaryParsed(binary, name, result.group(4)))
+        parsed.append(BinaryParsed(binary, name, result.group(4))) # TODO
 
     return parsed
+
+def package_binary_list(apiurl, project, repository, arch, package=None):
+    path = ['build', project, repository, arch]
+    if package:
+        path.append(package)
+    url = makeurl(apiurl, path, {'view': 'binaryversions'})
+    root = ET.parse(http_GET(url)).getroot()
+
+    package_binaries = []
+    binary_map = {}
+    for binary_list in root:
+        package = binary_list.get('package').split(':', 1)[0] # TODO Hmm done here?
+        for binary in binary_list:
+            filename = binary.get('name')
+            result = re.match(RPM_REGEX, filename)
+            if not result:
+                continue
+
+            package_binaries.append(BinaryParsed(result.group('filename'), result.group('name'), result.group('arch'), package))
+            binary_map[result.group('filename')] = package
+
+    return package_binaries, binary_map

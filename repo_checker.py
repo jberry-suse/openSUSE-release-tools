@@ -1,14 +1,18 @@
 #!/usr/bin/python
 
 from collections import namedtuple
+import hashlib
 import os
 import pipes
+import re
 import subprocess
 import sys
 import tempfile
 
 from osclib.core import binary_list
+from osclib.core import BINARY_REGEX
 from osclib.core import depends_on
+from osclib.core import package_binary_list
 from osclib.core import request_staged
 from osclib.core import target_archs
 from osclib.cycle import CycleDetector
@@ -18,6 +22,8 @@ import ReviewBot
 
 SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__))
 CheckResult = namedtuple('CheckResult', ('success', 'comment'))
+INSTALL_REGEX = r"^(?:can't install (.*?)|found conflict of (.*?) with (.*?)):$"
+InstallSection = namedtuple('InstallSection', ('binaries', 'text'))
 
 class RepoChecker(ReviewBot.ReviewBot):
     def __init__(self, *args, **kwargs):
@@ -41,14 +47,128 @@ class RepoChecker(ReviewBot.ReviewBot):
 
             results = {
                 'cycle': CheckResult(True, None),
-                'install': self.install_check('', directory_project, arch, [], []),
+                'install': self.install_check('', directory_project, arch, [], ['installation-images-debuginfodeps-Kubic']),
             }
 
             if not all(result.success for _, result in results.items()):
                 self.result_comment(project, project, arch, results, comment)
+                # TODO Check flag.
+                # TODO Should also be merged so both archs together, but do
+                # mapping per arch and file one issue per package
+                #if not results['install'].success:
+                    #self.foobar(project, arch, results['install'])
 
         text = '\n'.join(comment).strip()
-        api.dashboard_content_ensure('repo_checker', text, 'project_only run')
+        #print(text)
+        #api.dashboard_content_ensure('repo_checker', text, 'project_only run')
+        self.post_comment(project)
+
+    def post_comment(self, project):
+        for key, sections in self.package_results.items():
+            #package = key
+            print(key, len(sections))
+            sections = sorted(sections, key=lambda s: s.text)
+            print('\n'.join([section.text for section in sections]))
+            message = '\n'.join([section.text for section in sections])
+            message = '```\n' + message.strip() + '\n```'
+            message = 'The version of this package in `{}` is uninstallable:\n\n'.format(project) + message
+
+            binaries = set()
+            for section in sections:
+                binaries.update(section.binaries)
+            info = ';'.join(['::'.join(sorted(binaries)), str(len(sections))])
+            reference = hashlib.sha1(info).hexdigest()[:7]
+
+            #for package in key:
+            package = key
+            _project, package = self.get_devel_project(project, package)
+            print(_project, package)
+            message += "\n\n{}/{}".format(_project, package)
+            _project = 'home:jberry:repo-checker'
+            package = 'uninstallable-monster'
+            self.comment_write(state='seen', result=reference, project=_project, package=package,
+                               message=message)
+            CABOOM()
+
+    def foobar(self, project, arch, result_install):
+        package_binaries, binary_map = package_binary_list(self.apiurl, project, 'standard', arch)
+
+        # loop over file to parse into chunks and assign chunks to packages
+        #sections = self.parse_install_output(result_install.comment)
+        sections = self.parse_install_output(result_install)
+        #grouped = {}
+        for section in sections:
+            print(section.binaries)
+            # TODO lookup binaries
+            packages = set([binary_map[b] for b in section.binaries])
+            #key = '::'.join(packages)
+            #key = packages
+            #grouped.setdefault(key, [])
+            #grouped[key].append(section)
+            for package in packages:
+                # make note about combining
+                key = package
+                self.package_results.setdefault(key, [])
+                self.package_results[key].append(section)
+
+        #return grouped
+
+        #for key, sections in grouped.items():
+            #print(key, len(sections))
+            #print('\n'.join([section.text for section in sections]))
+
+        #self.comment_write(state='seen', result='failed', project=group,
+                #message='\n'.join(comment).strip(), identical=True)
+
+    def parse_install_output(self, output):
+        section = None
+        text = None
+
+        for line in output.splitlines(True):
+            if line.startswith(' '):
+                if section:
+                    text += line
+            else:
+                if section:
+                    yield InstallSection(section, text)
+
+                match = re.match(INSTALL_REGEX, line)
+                if match:
+                    binaries = [b for b in match.groups() if b is not None]
+                    section = binaries
+                    text = line
+                else:
+                    section = None
+
+        if section:
+            yield InstallSection(section, text)
+
+    #def parse_install_output(self, output):
+        #sections = []
+        #section = None
+
+        #for line in output.splitlines(True):
+            #if line.startswith(' '):
+                #if section:
+                    #section.text += line
+            #else:
+                #match = re.match(INSTALL_REGEX, line)
+                #if match:
+                    #binaries = [p for p in match.groups() if p is not None]
+                    ##if match.group(1):
+                        ##binaries = [match.group(1)]
+                    ##else:
+                        ##binaries = [match.group(2), match.group(3)]
+                    #section = InstallSection(binaries, line)
+                    #sections.append(section)
+                #else:
+                    #section = None
+
+        #return sections
+        #for match in re.finditer(INSTALL_REGEX, result_install.comment):
+            #if match.group(1):
+                
+        #BINARY_REGEX
 
     def prepare_review(self):
         # Reset for request batch.
@@ -58,6 +178,8 @@ class RepoChecker(ReviewBot.ReviewBot):
         # Manipulated in ensure_group().
         self.group = None
         self.mirrored = set()
+
+        self.package_results = {}
 
         # Look for requests of interest and group by staging.
         for request in self.requests:
@@ -166,7 +288,7 @@ class RepoChecker(ReviewBot.ReviewBot):
     def mirror(self, project, arch):
         """Call bs_mirrorfull script to mirror packages."""
         directory = os.path.join(CACHEDIR, project, 'standard', arch)
-        if (project, arch) in self.mirrored:
+        if (project, arch) in self.mirrored or True:
             # Only mirror once per request batch.
             return directory
 
@@ -234,6 +356,11 @@ class RepoChecker(ReviewBot.ReviewBot):
             if p.returncode == 126:
                 self.logger.warn('mirror cache reset due to corruption')
                 self.mirrored = set()
+            else:
+                # TODO parse()
+                #self.foobar(project, arch, stdout)
+                self.foobar('openSUSE:Factory', arch, stdout)
+                #pass
 
             # Format output as markdown comment.
             code = '```\n'
