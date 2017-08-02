@@ -83,11 +83,11 @@ class RepoChecker(ReviewBot.ReviewBot):
             package = key
             _project, package = self.get_devel_project(project, package)
             print(_project, package)
-            message += "\n\n{}/{}".format(_project, package)
-            _project = 'home:jberry:repo-checker'
-            package = 'uninstallable-monster'
-            self.comment_write(state='seen', result=reference, project=_project, package=package,
-                               message=message)
+            #message += "\n\n{}/{}".format(_project, package)
+            #_project = 'home:jberry:repo-checker'
+            #package = 'uninstallable-monster'
+            self.comment_write(state='seen', result=reference,
+                               project=_project, package=package, message=message)
             CABOOM()
 
     def foobar(self, project, arch, result_install):
