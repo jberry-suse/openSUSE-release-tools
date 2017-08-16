@@ -184,9 +184,25 @@ class RepoChecker(ReviewBot.ReviewBot):
                 self.result_comment(project, group, arch, results, comment)
 
         if not self.group_pass:
+            text = ''
+            length = 0
+            for line in comment:
+                text += line + '\n'
+                length += len(text)
+
+                if length > 16384:
+                    print(text[-50:])
+                    if text.strip().endswith('```'):
+                        # Truncate comments to avoid crashing OBS.
+                        text = text[:16384 - 7] + '...\n```'
+                    else:
+                        text = text[:16384 - 3] + '...'
+                    break
+
             # Some checks in group did not pass, post comment.
             self.comment_write(state='seen', result='failed', project=group,
-                               message='\n'.join(comment).strip(), identical=True)
+                               #message='\n'.join(comment).strip(), identical=True)
+                               message=text.strip(), identical=True)
 
         return self.group_pass
 
