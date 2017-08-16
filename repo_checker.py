@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from urllib2 import HTTPError
 
 from osclib.core import binary_list
 from osclib.core import depends_on
@@ -161,14 +162,11 @@ class RepoChecker(ReviewBot.ReviewBot):
             directory_group = self.mirror(group, arch)
 
             # Generate list of rpms to ignore from the project consisting of all
-            # packages in group and those that were deleted.
+            # packages in group and those that were deleted. (change comment)
             ignore = set()
-            self.ignore_from_repo(directory_group, ignore)
-
+            # TODO should really query all requests in staging
             for r in self.groups[group]:
-                a = r.actions[0]
-                if a.type == 'delete':
-                    self.ignore_from_package(project, a.tgt_package, arch, ignore)
+                self.ignore_from_package(project, r.actions[0].tgt_package, arch, ignore)
 
             whitelist = self.package_whitelist(project, arch)
 
@@ -225,20 +223,16 @@ class RepoChecker(ReviewBot.ReviewBot):
         self.mirrored.add((project, arch))
         return directory
 
-    def ignore_from_repo(self, directory, ignore):
-        """Extract rpm names from mirrored repo directory."""
-        for filename in os.listdir(directory):
-            if not filename.endswith('.rpm'):
-                continue
-            _, basename = filename.split('-', 1)
-            ignore.add(basename[:-4])
-
     def ignore_from_package(self, project, package, arch, ignore):
         """Extract rpm names from current build of package."""
-        for binary in binary_list(self.apiurl, project, 'standard', arch, package):
-            ignore.add(binary.name)
-
-        return ignore
+        try:
+            # TODO perhaps use package_binary_list() to avoid lots of queries
+            for binary in binary_list(self.apiurl, project, 'standard', arch, package):
+                ignore.add(binary.name)
+        except HTTPError as e:
+            # Ignore package not found new package submissions.
+            if e.code != 404:
+                raise e
 
     def package_whitelist(self, project, arch):
         prefix = 'repo_checker-package-whitelist'
