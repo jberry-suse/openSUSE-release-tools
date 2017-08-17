@@ -256,8 +256,9 @@ class RepoChecker(ReviewBot.ReviewBot):
                                #message='\n'.join(comment).strip(), identical=True)
                                message=text.strip(), identical=True)
         else:
-            # TODO comment that problems resolved (only if pre-existing comment)
-            pass
+            text = 'Previously reported problems have been resolved.'
+            self.comment_write(state='done', result='passed', project=group,
+                               message=text.strip(), identical=True, only_replace=True)
 
         return self.group_pass
 

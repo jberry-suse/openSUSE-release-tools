@@ -360,8 +360,8 @@ class ReviewBot(object):
             if node is not None:
                 return node.get('project'), node.get('package', None)
         except urllib2.HTTPError, e:
-            if e.code == 404:
-                pass
+            if e.code != 404:
+                raise e
         return None, None
 
     def can_accept_review(self, request_id):
@@ -427,7 +427,7 @@ class ReviewBot(object):
         self.comment_handler.lines = list(OrderedDict.fromkeys(self.comment_handler.lines))
 
     def comment_write(self, state='done', result=None, project=None, package=None,
-                      request=None, message=None, identical=False):
+                      request=None, message=None, identical=False, only_replace=False):
         """Write comment from log messages if not similar to previous comment."""
         if project:
             kwargs = {'project_name': project}
@@ -463,6 +463,9 @@ class ReviewBot(object):
                 comment, _ = self.comment_api.comment_find(comments, self.bot_name)
             if comment is not None:
                 self.comment_api.delete(comment['id'])
+            elif only_replace:
+                self.logger.debug('no previous comment to replace in {}'.format(debug_key))
+                return
             self.comment_api.add_comment(comment=str(message), **kwargs)
 
         self.comment_handler_remove()
