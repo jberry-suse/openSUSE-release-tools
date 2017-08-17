@@ -465,15 +465,17 @@ class ReviewBot(object):
 
         self.logger.debug('adding comment to {}: {}'.format(debug_key, message))
 
-        if not self.dryrun:
-            if comment is None:
-                # Broaden search to include any comment state.
-                comment, _ = self.comment_api.comment_find(comments, self.bot_name)
-            if comment is not None:
+        if comment is None:
+            # Broaden search to include any comment state.
+            comment, _ = self.comment_api.comment_find(comments, self.bot_name)
+        if comment is not None:
+            self.logger.debug('removing previous comment on {}'.format(debug_key))
+            if not self.dryrun:
                 self.comment_api.delete(comment['id'])
-            elif only_replace:
-                self.logger.debug('no previous comment to replace in {}'.format(debug_key))
-                return
+        elif only_replace:
+            self.logger.debug('no previous comment to replace in {}'.format(debug_key))
+            return
+        if not self.dryrun:
             self.comment_api.add_comment(comment=str(message), **kwargs)
 
         self.comment_handler_remove()
