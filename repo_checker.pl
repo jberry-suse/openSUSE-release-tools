@@ -19,6 +19,7 @@ require CreatePackageDescr;
 my $ret = 0;
 my $arch = shift @ARGV;
 my $dir = shift @ARGV;
+my $dir_sub;
 my %toignore;
 my $repodir;
 my %whitelist;
@@ -35,6 +36,9 @@ while (@ARGV) {
     }
     elsif ( $switch eq "-r" ) {
         $repodir = shift @ARGV;
+    }
+    elsif ( $switch eq "-s" ) {
+        $dir_sub = shift @ARGV;
     }
     elsif ( $switch eq "-w" ) {
         %whitelist = map { $_ => 1 } split(/\,/, shift @ARGV);
@@ -61,6 +65,11 @@ sub write_package($$) {
     if ( $ignore == 1 && defined $toignore{$name} ) {
         return;
     }
+
+#     if ($ignore == 1 && $package =~ /containerd-test/) {
+#         print STDERR "wut: $package";
+#         exit(120);
+#     }
 
     my $out = CreatePackageDescr::package_snippet($package);
     if ($out eq "" || $out =~ m/=Pkg:    /) {
@@ -93,6 +102,20 @@ foreach my $package (@rpms) {
     }
 }
 
+# if ($dir =~ m/.*?:Staging:[A-Z]$/) {
+if (length($dir_sub)) {
+#     $dir = $dir . ":DVD";
+    @rpms = glob("$dir_sub/*.rpm");
+    foreach my $package (@rpms) {
+#         print("$package\n");
+        my $name = write_package( 0, $package );
+        if (!exists($whitelist{$name})) {
+            $targets{$name} = 1;
+        }
+    }
+#     exit(1);
+}
+
 close(PACKAGES);
 
 my $error_file = $tmpdir . "/error_file";
@@ -103,8 +126,11 @@ while (<INSTALL>) {
     chomp;
 
     next if (/^unknown line:.*Flx/);
-    if ( $_ =~ /^can't install (.*)-[^-]+-[^-]+:$/ ) {
+    if ($_ =~ /^[^ ]/) {
         $inc = 0;
+    }
+    if ( $_ =~ /^can't install (.*)-[^-]+-[^-]+:$/ ) {
+#         $inc = 0;
 
         if ( defined $targets{$1} ) {
             $inc = 1;
@@ -131,8 +157,11 @@ $inc = 0;
 while (<CONFLICTS>) {
     chomp;
 
-    if ( $_ =~ /^found conflict of (.*)-[^-]+-[^-]+ with (.*)-[^-]+-[^-]+:$/ ) {
+    if ($_ =~ /^[^ ]/) {
         $inc = 0;
+    }
+    if ( $_ =~ /^found conflict of (.*)-[^-]+-[^-]+ with (.*)-[^-]+-[^-]+:$/ ) {
+#         $inc = 0;
 
         if ( defined $targets{$1} || defined $targets{$2} ) {
             $inc = 1;

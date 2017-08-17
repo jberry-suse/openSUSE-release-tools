@@ -13,6 +13,7 @@ import tempfile
 from osclib.core import binary_list
 from osclib.core import depends_on
 from osclib.core import package_binary_list
+from osclib.core import package_list
 from osclib.core import request_staged
 from osclib.core import target_archs
 from osclib.cycle import CycleDetector
@@ -45,9 +46,10 @@ class RepoChecker(ReviewBot.ReviewBot):
         for arch in self.target_archs(project):
             directory_project = self.mirror(project, arch)
 
+            parse = project if post_comments else False
             results = {
                 'cycle': CheckResult(True, None),
-                'install': self.install_check('', directory_project, arch, [], [], parse=project),
+                'install': self.install_check('', directory_project, arch, [], [], parse=parse),
             }
 
             if not all(result.success for _, result in results.items()):
@@ -66,9 +68,9 @@ class RepoChecker(ReviewBot.ReviewBot):
             # Sort sections by text to group binaries together.
             sections = sorted(sections, key=lambda s: s.text)
             message = '\n'.join([section.text for section in sections])
-            if len(message) > 16384:
+            if len(message) > 65535:
                 # Truncate messages to avoid crashing OBS.
-                message = message[:16384 - 3] + '...'
+                message = message[:65535 - 3] + '...'
             message = '```\n' + message.strip() + '\n```'
             message = 'The version of this package in `{}` has installation issues and may not be installable:\n\n'.format(project) + message
 
@@ -141,6 +143,10 @@ class RepoChecker(ReviewBot.ReviewBot):
     def ensure_group(self, request, action):
         project = action.tgt_project
         group = self.requests_map[int(request.reqid)]
+        if re.match(r'.*?:Staging:[A-Z]$', group):
+            group_sub = group + ':DVD'
+        else:
+            group_sub = False
 
         if group == self.group:
             # Only process a group the first time it is encountered.
@@ -148,6 +154,7 @@ class RepoChecker(ReviewBot.ReviewBot):
 
         self.logger.info('group {}'.format(group))
         self.group = group
+        self.group_sub = group_sub # TODO yikes
         self.group_pass = True
 
         comment = []
@@ -155,27 +162,72 @@ class RepoChecker(ReviewBot.ReviewBot):
             if arch not in self.target_archs(group):
                 self.logger.debug('{}/{} not available'.format(group, arch))
                 continue
+            if group_sub and arch in self.target_archs(group_sub):
+                group_sub_do = True
+            else:
+                group_sub_do = False
+            #print(group, group_sub, group_sub_do, arch, self.target_archs(group_sub))
 
             # Mirror both projects the first time each are encountered.
             directory_project = self.mirror(project, arch)
             directory_group = self.mirror(group, arch)
+            if group_sub_do:
+                directory_group_sub = self.mirror(group_sub, arch)
+            else:
+                directory_group_sub = ''
 
             # Generate list of rpms to ignore from the project consisting of all
             # packages in group and those that were deleted.
             ignore = set()
-            self.ignore_from_repo(directory_group, ignore)
 
-            for r in self.groups[group]:
-                a = r.actions[0]
-                if a.type == 'delete':
-                    self.ignore_from_package(project, a.tgt_package, arch, ignore)
+            packages = package_list(self.apiurl, group)
+            self.ignore_from_package_list(project, packages, arch, ignore)
+            #for package in packages:
+                #self.ignore_from_package(project, a.tgt_package, arch, ignore)
+
+            if group_sub_do:
+            #if group_sub_do and False:
+                packages = package_list(self.apiurl, group_sub)
+                self.ignore_from_package_list(project, packages, arch, ignore)
+
+            #if re.match(r'.*?:Staging:[A-Z]$', group):
+                #packages = package_list(self.apiurl, group + ':DVD')
+                #self.ignore_from_package_list(project, packages, arch, ignore)
+                #for package in packages:
+                    #self.ignore_from_package(project, a.tgt_package, arch, ignore)
+
+            #sys.exit()
+            #self.ignore_from_repo(directory_group, ignore)
+            #if re.match(r'.*?:Staging:[A-Z]$', group):
+                #directory = os.path.join(CACHEDIR, group + ':DVD', 'standard', arch)
+                #self.ignore_from_repo(directory, ignore)
+
+            #for r in self.groups[group]:
+                #a = r.actions[0]
+                #if a.type == 'delete':
+                    #self.ignore_from_package(project, a.tgt_package, arch, ignore)
+
+            #print(ignore)
+            #print(len(ignore))
+            #for i in ignore:
+                #print(i)
+
+            #ignore2 = set()
+            #self.ignore_from_repo(directory_group, ignore2)
+            #print(len(ignore2))
+            #a = 0
+            #for i in ignore2:
+                #print(i)
+                #a += 1
+                #if a >= 100:
+                    #break
 
             whitelist = self.package_whitelist(project, arch)
 
             # Perform checks on group.
             results = {
                 'cycle': self.cycle_check(project, group, arch),
-                'install': self.install_check(directory_project, directory_group, arch, ignore, whitelist),
+                'install': self.install_check(directory_project, directory_group, directory_group_sub, arch, ignore, whitelist),
             }
 
             if not all(result.success for _, result in results.items()):
@@ -184,9 +236,28 @@ class RepoChecker(ReviewBot.ReviewBot):
                 self.result_comment(project, group, arch, results, comment)
 
         if not self.group_pass:
+            text = ''
+            length = 0
+            for line in comment:
+                text += line + '\n'
+                length += len(text)
+
+                if length > 65535:
+                    #print(text[-50:])
+                    if text.strip().endswith('```'):
+                        # Truncate comments to avoid crashing OBS.
+                        text = text[:65535 - 7] + '...\n```'
+                    else:
+                        text = text[:65535 - 3] + '...'
+                    break
+
             # Some checks in group did not pass, post comment.
             self.comment_write(state='seen', result='failed', project=group,
-                               message='\n'.join(comment).strip(), identical=True)
+                               #message='\n'.join(comment).strip(), identical=True)
+                               message=text.strip(), identical=True)
+        else:
+            # TODO comment that problems resolved (only if pre-existing comment)
+            pass
 
         return self.group_pass
 
@@ -235,10 +306,22 @@ class RepoChecker(ReviewBot.ReviewBot):
 
     def ignore_from_package(self, project, package, arch, ignore):
         """Extract rpm names from current build of package."""
-        for binary in binary_list(self.apiurl, project, 'standard', arch, package):
-            ignore.add(binary.name)
+        try:
+            # TODO Perhaps use package_binary_list() to avoid lots of queries.
+            for binary in binary_list(self.apiurl, project, 'standard', arch, package):
+                ignore.add(binary.name)
+        except HTTPError as e:
+            # Ignore package not found new package submissions.
+            if e.code != 404:
+                raise e
 
-        return ignore
+    def ignore_from_package_list(self, project, packages, arch, ignore):
+        """Extract rpm names from current build of package."""
+        binaries, _ = package_binary_list(self.apiurl, project, 'standard', arch)
+        for binary in binaries:
+            if binary.package in packages:
+                #print(binary.filename, binary.name)
+                ignore.add(binary.name)
 
     def package_whitelist(self, project, arch):
         prefix = 'repo_checker-package-whitelist'
@@ -247,7 +330,7 @@ class RepoChecker(ReviewBot.ReviewBot):
             whitelist.update(self.staging_config[project].get(key, '').split(' '))
         return whitelist
 
-    def install_check(self, directory_project, directory_group, arch, ignore, whitelist, parse=False):
+    def install_check(self, directory_project, directory_group, directory_group_sub, arch, ignore, whitelist, parse=False):
         self.logger.info('install check: start')
 
         with tempfile.NamedTemporaryFile() as ignore_file:
@@ -258,9 +341,10 @@ class RepoChecker(ReviewBot.ReviewBot):
 
             # Invoke repo_checker.pl to perform an install check.
             script = os.path.join(SCRIPT_PATH, 'repo_checker.pl')
+            #directory_group_sub = ''
             parts = ['LC_ALL=C', 'perl', script, arch, directory_group,
                      '-r', directory_project, '-f', ignore_file.name,
-                     '-w', ','.join(whitelist)]
+                     '-s', directory_group_sub, '-w', ','.join(whitelist)]
             parts = [pipes.quote(part) for part in parts]
             p = subprocess.Popen(' '.join(parts), shell=True,
                                  stdout=subprocess.PIPE,
@@ -366,6 +450,8 @@ class RepoChecker(ReviewBot.ReviewBot):
 
     def result_comment(self, project, group, arch, results, comment):
         """Generate comment from results"""
+        #if len(comment) > 65535:
+            #return
         comment.append('## ' + arch + '\n')
         if not results['cycle'].success:
             comment.append('### new [cycle(s)](/project/repository_state/{}/standard)\n'.format(group))
@@ -373,6 +459,9 @@ class RepoChecker(ReviewBot.ReviewBot):
         if not results['install'].success:
             comment.append('### [install check & file conflicts](/package/view_file/{}:Staging/dashboard/repo_checker)\n'.format(project))
             comment.append(results['install'].comment + '\n')
+        #if len(comment) > 65535:
+            ## Truncate comments to avoid crashing OBS.
+            #comment = comment[:65535 - 7] + '...\n```'
 
     def check_action_submit(self, request, action):
         if not self.ensure_group(request, action):
@@ -382,20 +471,33 @@ class RepoChecker(ReviewBot.ReviewBot):
         return True
 
     def check_action_delete(self, request, action):
+        # Allow for delete to be declined before ensuring group passed. <-- nope
+        if not self.ensure_group(request, action):
+            return None
+
         # TODO Include runtime dependencies instead of just build dependencies.
         # TODO Ignore tgt_project packages that depend on this that are part of
         # ignore list as and instead look at output from staging for those.
         what_depends_on = depends_on(self.apiurl, action.tgt_project, 'standard', [action.tgt_package], True)
+        # TODO make sure not a package in staging, this should be after grouped
         if len(what_depends_on):
-            self.logger.warn('{} still required by {}'.format(action.tgt_package, ', '.join(what_depends_on)))
+            # need group (plus subs or general way to handle)
+            # find packages staged with it and want depends not including those
+            packages = set(package_list(self.apiurl, self.group))
+            if self.group_sub:
+                packages.update(package_list(self.apiurl, self.group_sub))
+            print(what_depends_on, what_depends_on - packages)
+            if len(what_depends_on - packages):
+                #self.logger.warn('{} still required by {}'.format(action.tgt_package, ', '.join(what_depends_on)))
+                self.comment_write(state='seen', result='failed', identical=True,
+                    message='{} still required by {}'.format(action.tgt_package, ', '.join(what_depends_on)))
+                return None
 
-        if len(self.comment_handler.lines):
-            self.comment_write(result='decline')
-            return False
-
-        # Allow for delete to be declined before ensuring group passed.
-        if not self.ensure_group(request, action):
-            return None
+        #if len(self.comment_handler.lines):
+            #self.comment_write(result='decline')
+            #return False
+            #self.comment_write(state='seen', result='failed', message=, identical=True)
+            #return None
 
         self.review_messages['accepted'] = 'delete request is safe'
         return True
