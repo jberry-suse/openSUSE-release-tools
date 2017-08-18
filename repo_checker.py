@@ -37,8 +37,10 @@ def utf8_byte_truncate(text, max_bytes):
     if len(utf8) <= max_bytes:
         return utf8
     i = max_bytes
+    print('max_bytes', max_bytes)
     while i > 0 and not utf8_lead_byte(utf8[i]):
         i -= 1
+    print('i', i)
     return utf8[:i]
 
 class RepoChecker(ReviewBot.ReviewBot):
@@ -90,7 +92,7 @@ class RepoChecker(ReviewBot.ReviewBot):
             if sys.getsizeof(message) > space_remaining * 2:
                 # Truncate messages to avoid crashing OBS.
                 #message = message[:space_remaining - 3] + '...'
-                message = utf8_byte_truncate(message, space_remaining - 3) + '...'
+                message = utf8_byte_truncate(message, (space_remaining - 3) * 2) + '...'
             message = template.format(message)
             print(sys.getsizeof(message))
 
@@ -271,12 +273,18 @@ class RepoChecker(ReviewBot.ReviewBot):
                     if text.strip().endswith('</pre>'):
                         # Truncate comments to avoid crashing OBS.
                         #text = text[:max_length - 10] + '...\n</pre>'
-                        text = utf8_byte_truncate(text, max_length - 10) + '...\n</pre>'
+                        text = utf8_byte_truncate(text, (max_length - 10) * 2) + '...\n</pre>'
+                        #text = utf8_byte_truncate(text, (max_length - 10) * 2)
                     else:
                         #text = text[:max_length - 3] + '...'
-                        text = utf8_byte_truncate(text, max_length - 3) + '...'
+                        text = utf8_byte_truncate(text, (max_length - 3) * 2) + '...'
                     break
             print(sys.getsizeof(text))
+            print(sys.getsizeof('...\n</pre>'))
+            print(sys.getsizeof('...\n</pre>'.encode('utf8')))
+            print(len('...\n</pre>'.encode('utf8')))
+            #131070
+            #131050
 
             # Some checks in group did not pass, post comment.
             self.comment_write(state='seen', result='failed', project=group,
