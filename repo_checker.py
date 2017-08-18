@@ -65,14 +65,16 @@ class RepoChecker(ReviewBot.ReviewBot):
         self.logger.info('{} package comments'.format(len(self.package_results)))
 
         for package, sections in self.package_results.items():
+            template = 'The version of this package in `{}` has installation issues and may not be installable:\n\n<pre>\n{}\n</pre>'.format(project)
+
             # Sort sections by text to group binaries together.
+            space_remaining = 65535 - len(template) # has the {} in it
             sections = sorted(sections, key=lambda s: s.text)
             message = '\n'.join([section.text for section in sections])
-            if len(message) > 65535:
+            if len(message) > space_remaining:
                 # Truncate messages to avoid crashing OBS.
-                message = message[:65535 - 3] + '...'
-            message = '```\n' + message.strip() + '\n```'
-            message = 'The version of this package in `{}` has installation issues and may not be installable:\n\n'.format(project) + message
+                message = message[:space_remaining - 3] + '...'
+            message = template.format(message)
 
             # Generate a hash based on the binaries involved and the number of
             # sections. This eliminates version or release changes from causing
@@ -244,9 +246,9 @@ class RepoChecker(ReviewBot.ReviewBot):
 
                 if length > 65535:
                     #print(text[-50:])
-                    if text.strip().endswith('```'):
+                    if text.strip().endswith('</pre>'):
                         # Truncate comments to avoid crashing OBS.
-                        text = text[:65535 - 7] + '...\n```'
+                        text = text[:65535 - 10] + '...\n</pre>'
                     else:
                         text = text[:65535 - 3] + '...'
                     break
@@ -363,15 +365,15 @@ class RepoChecker(ReviewBot.ReviewBot):
                 self.install_check_sections_group(parse, arch, sections)
 
             # Format output as markdown comment.
-            code = '```\n'
+            #code = '```\n'
             parts = []
 
             stdout = stdout.strip()
             if stdout:
-                parts.append(code + stdout + '\n' + code)
+                parts.append('<pre>\n' + stdout + '\n' + '</pre>\n')
             stderr = stderr.strip()
             if stderr:
-                parts.append(code + stderr + '\n' + code)
+                parts.append('<pre>\n' + stderr + '\n' + '</pre>\n')
 
             return CheckResult(False, ('\n' + ('-' * 80) + '\n\n').join(parts))
 
