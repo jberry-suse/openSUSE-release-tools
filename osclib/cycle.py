@@ -171,7 +171,7 @@ class CycleDetector(object):
     def _get_builddepinfo_graph(self, project, repository, arch):
         """Generate the buildepinfo graph for a given architecture."""
 
-        _IGNORE_PREFIX = ('texlive-', 'master-boot-code')
+        #_IGNORE_PREFIX = ('master-boot-code')
 
         # Note, by default generate the graph for all Factory /
         # 13/2. If you only need the base packages you can use:
@@ -186,7 +186,7 @@ class CycleDetector(object):
         # XXX - Ugly Exception. We need to ignore branding packages and
         # packages that one of his dependencies do not exist. Also ignore
         # preinstall images.
-        packages = [p for p in packages if not ('branding' in p.pkg or p.pkg.startswith('preinstallimage-'))]
+        #packages = [p for p in packages if not ('branding' in p.pkg or p.pkg.startswith('preinstallimage-'))]
 
         graph = Graph()
         graph.add_nodes_from((p.pkg, p) for p in packages)
@@ -203,8 +203,14 @@ class CycleDetector(object):
 
         for p in packages:
             # Calculate the missing deps
-            deps = [d for d in p.deps if 'branding' not in d]
-            missing = [d for d in deps if not d.startswith(_IGNORE_PREFIX) and d not in subpkgs]
+            #deps = [d for d in p.deps if 'branding' not in d]
+            deps = p.deps
+            #missing = [d for d in deps if not d.startswith(_IGNORE_PREFIX) and d not in subpkgs]
+            #missing = [d for d in deps if d not in subpkgs]
+            #print(missing)
+            #missing = set(deps) - set(subpkgs.keys())
+            missing = set(deps) - set(subpkgs)
+            #print(missing)
             if missing:
                 if p.pkg not in self._ignore_packages:
                     # print 'Ignoring package. Missing dependencies %s -> (%s) %s...' % (p.pkg, len(missing), missing[:5])
@@ -214,8 +220,9 @@ class CycleDetector(object):
             # XXX - Ugly Hack. Subpagackes for texlive are not correctly
             # generated. If the dependency starts with texlive- prefix,
             # assume that the correct source package is texlive.
-            graph.add_edges_from((p.pkg, subpkgs[d] if not d.startswith('texlive-') else 'texlive')
-                                 for d in deps if not d.startswith('master-boot-code'))
+            #graph.add_edges_from((p.pkg, subpkgs[d] if not d.startswith('texlive-') else 'texlive')
+                                 #for d in deps if not d.startswith('master-boot-code'))
+            graph.add_edges_from((p.pkg, subpkgs[d]) for d in deps)
 
         # Store the subpkgs dict in the graph. It will be used later.
         graph.subpkgs = subpkgs
