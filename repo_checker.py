@@ -92,7 +92,7 @@ class RepoChecker(ReviewBot.ReviewBot):
             #space_remaining = 65535 - len(template) # has the {} in it
             space_remaining = 65535 - len(template) - 1500 # has the {} in it
             sections = sorted(sections, key=lambda s: s.text)
-            message = '\n'.join([section.text for section in sections])
+            message = '\n'.join([section.text for section in sections]).strip()
             #if len(message) > space_remaining:
             if sys.getsizeof(message) > space_remaining * 2:
                 # Truncate messages to avoid crashing OBS.
