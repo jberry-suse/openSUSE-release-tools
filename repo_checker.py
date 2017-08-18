@@ -86,21 +86,21 @@ class RepoChecker(ReviewBot.ReviewBot):
         self.logger.info('{} package comments'.format(len(self.package_results)))
 
         for package, sections in self.package_results.items():
-            template = 'The version of this package in `{}` has installation issues and may not be installable:\n\n<pre>\n{}\n</pre>'.format(project)
+            template = 'The version of this package in `{}` has installation issues and may not be installable:\n\n<pre>\n'.format(project) # {}\n</pre>
 
             # Sort sections by text to group binaries together.
             #space_remaining = 65535 - len(template) # has the {} in it
-            space_remaining = 65535 - len(template) - 1000 # has the {} in it
+            space_remaining = 65535 - len(template) - 1500 # has the {} in it
             sections = sorted(sections, key=lambda s: s.text)
             message = '\n'.join([section.text for section in sections])
             #if len(message) > space_remaining:
             if sys.getsizeof(message) > space_remaining * 2:
                 # Truncate messages to avoid crashing OBS.
                 #message = message[:space_remaining - 3] + '...'
-                message = utf8_byte_truncate(message, (space_remaining - 3) * 2) + '...'
+                #message = utf8_byte_truncate(message, (space_remaining - 3) * 2) + '...'
                 message = unicode_truncate(message, space_remaining - 3) + '...'
-            message = template.format(message)
-            print(sys.getsizeof(message))
+            message = template + message + '\n</pre>'
+            #print(sys.getsizeof(message))
 
             # Generate a hash based on the binaries involved and the number of
             # sections. This eliminates version or release changes from causing
