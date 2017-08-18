@@ -33,7 +33,7 @@ def utf8_lead_byte(b):
 def utf8_byte_truncate(text, max_bytes):
     '''If text[max_bytes] is not a lead byte, back up until a lead byte is
     found and truncate before that character.'''
-    utf8 = text.encode('utf8')
+    utf8 = text.encode('utf-8')
     if len(utf8) <= max_bytes:
         return utf8
     i = max_bytes
@@ -42,6 +42,10 @@ def utf8_byte_truncate(text, max_bytes):
         i -= 1
     print('i', i)
     return utf8[:i]
+
+def unicode_truncate(s, length, encoding='utf-8'):
+    encoded = s.encode(encoding)[:length]
+    return encoded.decode(encoding, 'ignore')
 
 class RepoChecker(ReviewBot.ReviewBot):
     def __init__(self, *args, **kwargs):
@@ -85,7 +89,8 @@ class RepoChecker(ReviewBot.ReviewBot):
             template = 'The version of this package in `{}` has installation issues and may not be installable:\n\n<pre>\n{}\n</pre>'.format(project)
 
             # Sort sections by text to group binaries together.
-            space_remaining = 65535 - len(template) # has the {} in it
+            #space_remaining = 65535 - len(template) # has the {} in it
+            space_remaining = 65535 - len(template) - 1000 # has the {} in it
             sections = sorted(sections, key=lambda s: s.text)
             message = '\n'.join([section.text for section in sections])
             #if len(message) > space_remaining:
@@ -93,6 +98,7 @@ class RepoChecker(ReviewBot.ReviewBot):
                 # Truncate messages to avoid crashing OBS.
                 #message = message[:space_remaining - 3] + '...'
                 message = utf8_byte_truncate(message, (space_remaining - 3) * 2) + '...'
+                message = unicode_truncate(message, space_remaining - 3) + '...'
             message = template.format(message)
             print(sys.getsizeof(message))
 
@@ -260,12 +266,12 @@ class RepoChecker(ReviewBot.ReviewBot):
         if not self.group_pass:
             text = ''
             #length = 0
-            #max_length = 65535 - 10
-            max_length = 65535
+            max_length = 65535 - 1000
+            #max_length = 65535
             for line in comment:
                 text += line + '\n'
                 #length += len(line) + 1
-                print(len(text), sys.getsizeof(text))
+                #print(len(text), sys.getsizeof(text))
 
                 #if length > max_length:
                 if sys.getsizeof(text) > max_length * 2:
@@ -273,16 +279,18 @@ class RepoChecker(ReviewBot.ReviewBot):
                     if text.strip().endswith('</pre>'):
                         # Truncate comments to avoid crashing OBS.
                         #text = text[:max_length - 10] + '...\n</pre>'
-                        text = utf8_byte_truncate(text, (max_length - 10) * 2) + '...\n</pre>'
+                        #text = utf8_byte_truncate(text, (max_length - 10) * 2) + '...\n</pre>'
+                        text = unicode_truncate(text, max_length - 10) + '...\n</pre>'
                         #text = utf8_byte_truncate(text, (max_length - 10) * 2)
                     else:
                         #text = text[:max_length - 3] + '...'
-                        text = utf8_byte_truncate(text, (max_length - 3) * 2) + '...'
+                        #text = utf8_byte_truncate(text, (max_length - 3) * 2) + '...'
+                        text = unicode_truncate(text, max_length - 3) + '...'
                     break
-            print(sys.getsizeof(text))
-            print(sys.getsizeof('...\n</pre>'))
-            print(sys.getsizeof('...\n</pre>'.encode('utf8')))
-            print(len('...\n</pre>'.encode('utf8')))
+            #print(sys.getsizeof(text))
+            #print(sys.getsizeof('...\n</pre>'))
+            #print(sys.getsizeof('...\n</pre>'.encode('utf-8')))
+            #print(len('...\n</pre>'.encode('utf-8')))
             #131070
             #131050
 
