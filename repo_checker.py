@@ -26,6 +26,21 @@ CheckResult = namedtuple('CheckResult', ('success', 'comment'))
 INSTALL_REGEX = r"^(?:can't install (.*?)|found conflict of (.*?) with (.*?)):$"
 InstallSection = namedtuple('InstallSection', ('binaries', 'text'))
 
+def utf8_lead_byte(b):
+    '''A UTF-8 intermediate byte starts with the bits 10xxxxxx.'''
+    return (ord(b) & 0xC0) != 0x80
+
+def utf8_byte_truncate(text, max_bytes):
+    '''If text[max_bytes] is not a lead byte, back up until a lead byte is
+    found and truncate before that character.'''
+    utf8 = text.encode('utf8')
+    if len(utf8) <= max_bytes:
+        return utf8
+    i = max_bytes
+    while i > 0 and not utf8_lead_byte(utf8[i]):
+        i -= 1
+    return utf8[:i]
+
 class RepoChecker(ReviewBot.ReviewBot):
     def __init__(self, *args, **kwargs):
         ReviewBot.ReviewBot.__init__(self, *args, **kwargs)
@@ -71,10 +86,13 @@ class RepoChecker(ReviewBot.ReviewBot):
             space_remaining = 65535 - len(template) # has the {} in it
             sections = sorted(sections, key=lambda s: s.text)
             message = '\n'.join([section.text for section in sections])
-            if len(message) > space_remaining:
+            #if len(message) > space_remaining:
+            if sys.getsizeof(message) > space_remaining * 2:
                 # Truncate messages to avoid crashing OBS.
-                message = message[:space_remaining - 3] + '...'
+                #message = message[:space_remaining - 3] + '...'
+                message = utf8_byte_truncate(message, space_remaining - 3) + '...'
             message = template.format(message)
+            print(sys.getsizeof(message))
 
             # Generate a hash based on the binaries involved and the number of
             # sections. This eliminates version or release changes from causing
@@ -239,20 +257,26 @@ class RepoChecker(ReviewBot.ReviewBot):
 
         if not self.group_pass:
             text = ''
-            length = 0
-            max_length = 65535 - 10
+            #length = 0
+            #max_length = 65535 - 10
+            max_length = 65535
             for line in comment:
                 text += line + '\n'
-                length += len(line) + 1
+                #length += len(line) + 1
+                print(len(text), sys.getsizeof(text))
 
-                if length > max_length:
+                #if length > max_length:
+                if sys.getsizeof(text) > max_length * 2:
                     #print(text[-50:])
                     if text.strip().endswith('</pre>'):
                         # Truncate comments to avoid crashing OBS.
-                        text = text[:max_length - 10] + '...\n</pre>'
+                        #text = text[:max_length - 10] + '...\n</pre>'
+                        text = utf8_byte_truncate(text, max_length - 10) + '...\n</pre>'
                     else:
-                        text = text[:max_length - 3] + '...'
+                        #text = text[:max_length - 3] + '...'
+                        text = utf8_byte_truncate(text, max_length - 3) + '...'
                     break
+            print(sys.getsizeof(text))
 
             # Some checks in group did not pass, post comment.
             self.comment_write(state='seen', result='failed', project=group,
