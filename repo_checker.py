@@ -70,7 +70,7 @@ class RepoChecker(ReviewBot.ReviewBot):
             parse = project if post_comments else False
             results = {
                 'cycle': CheckResult(True, None),
-                'install': self.install_check('', directory_project, arch, [], [], parse=parse),
+                'install': self.install_check('', directory_project, '', arch, [], [], parse=parse),
             }
 
             if not all(result.success for _, result in results.items()):
