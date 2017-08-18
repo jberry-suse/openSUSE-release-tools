@@ -208,15 +208,15 @@ class RepoChecker(ReviewBot.ReviewBot):
             # packages in group and those that were deleted.
             ignore = set()
 
-            packages = package_list(self.apiurl, group)
-            self.ignore_from_package_list(project, packages, arch, ignore)
+            #packages = package_list(self.apiurl, group)
+            self.ignore_from_package_list(project, group, arch, ignore)
             #for package in packages:
                 #self.ignore_from_package(project, a.tgt_package, arch, ignore)
 
             if group_sub_do:
             #if group_sub_do and False:
-                packages = package_list(self.apiurl, group_sub)
-                self.ignore_from_package_list(project, packages, arch, ignore)
+                #packages = package_list(self.apiurl, group_sub)
+                self.ignore_from_package_list(project, group_sub, arch, ignore)
 
             #if re.match(r'.*?:Staging:[A-Z]$', group):
                 #packages = package_list(self.apiurl, group + ':DVD')
@@ -359,8 +359,12 @@ class RepoChecker(ReviewBot.ReviewBot):
             if e.code != 404:
                 raise e
 
-    def ignore_from_package_list(self, project, packages, arch, ignore):
+    def ignore_from_package_list(self, project, group, arch, ignore):
         """Extract rpm names from current build of package."""
+        _, binary_map = package_binary_list(self.apiurl, group, 'standard', arch)
+        packages = set(binary_map.values())
+        #print(len(packages))
+
         binaries, _ = package_binary_list(self.apiurl, project, 'standard', arch)
         for binary in binaries:
             if binary.package in packages:
