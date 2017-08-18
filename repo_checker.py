@@ -240,17 +240,18 @@ class RepoChecker(ReviewBot.ReviewBot):
         if not self.group_pass:
             text = ''
             length = 0
+            max_length = 65535 - 10
             for line in comment:
                 text += line + '\n'
-                length += len(text)
+                length += len(line) + 1
 
-                if length > 65535:
+                if length > max_length:
                     #print(text[-50:])
                     if text.strip().endswith('</pre>'):
                         # Truncate comments to avoid crashing OBS.
-                        text = text[:65535 - 10] + '...\n</pre>'
+                        text = text[:max_length - 10] + '...\n</pre>'
                     else:
-                        text = text[:65535 - 3] + '...'
+                        text = text[:max_length - 3] + '...'
                     break
 
             # Some checks in group did not pass, post comment.
