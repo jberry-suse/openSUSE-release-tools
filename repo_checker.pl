@@ -85,7 +85,7 @@ if (length($repodir)) {
     }
 }
 
-foreach $directory (@directories) {
+foreach my $directory (@directories) {
     @rpms = glob("$directory/*.rpm");
     foreach my $package (@rpms) {
         my $name = write_package( 0, $package );

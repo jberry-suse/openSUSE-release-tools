@@ -49,7 +49,7 @@ class RepoChecker(ReviewBot.ReviewBot):
             parse = project if post_comments else False
             results = {
                 'cycle': CheckResult(True, None),
-                'install': self.install_check([directory_project], arch, parse=parse),
+                'install': self.install_check(project, [directory_project], arch, parse=parse),
             }
 
             if not all(result.success for _, result in results.items()):
@@ -154,6 +154,7 @@ class RepoChecker(ReviewBot.ReviewBot):
         for arch in self.target_archs(project):
             directories = []
             ignore = set()
+            stagings = []
 
             directories.append(self.mirror(project, arch))
 
@@ -164,19 +165,20 @@ class RepoChecker(ReviewBot.ReviewBot):
 
                 directories.append(self.mirror(staging, arch))
                 ignore.update(self.ignore_from_staging(project, staging, arch))
+                stagings.append(staging)
 
             whitelist = self.package_whitelist(project, arch)
 
             # Perform checks on group.
             results = {
-                'cycle': self.cycle_check(project, group, arch), # TODO also loop, both should take list
-                'install': self.install_check(directories, arch, ignore, whitelist),
+                'cycle': self.cycle_check(project, stagings, arch),
+                'install': self.install_check(project, directories, arch, ignore, whitelist),
             }
 
             if not all(result.success for _, result in results.items()):
                 # Not all checks passed, build comment.
                 self.group_pass = False
-                self.result_comment(project, group, arch, results, comment)
+                self.result_comment(arch, results, comment)
 
         if not self.group_pass:
             # Some checks in group did not pass, post comment.
@@ -225,17 +227,14 @@ class RepoChecker(ReviewBot.ReviewBot):
         self.mirrored.add((project, arch))
         return directory
 
-    # TODO Documentation
-    #def ignore_from_package_list(self, project, group, arch, ignore):
     def ignore_from_staging(self, project, staging, arch):
-        """Extract rpm names from current build of package."""
+        """Determine the target project binaries to ingore in favor of staging."""
         _, binary_map = package_binary_list(self.apiurl, staging, 'standard', arch)
         packages = set(binary_map.values())
 
         binaries, _ = package_binary_list(self.apiurl, project, 'standard', arch)
         for binary in binaries:
             if binary.package in packages:
-                #ignore.add(binary.name)
                 yield binary.name
 
     def package_whitelist(self, project, arch):
@@ -245,7 +244,7 @@ class RepoChecker(ReviewBot.ReviewBot):
             whitelist.update(self.staging_config[project].get(key, '').split(' '))
         return whitelist
 
-    def install_check(self, directories, arch, ignore=[], whitelist=[], parse=False):
+    def install_check(self, project, directories, arch, ignore=[], whitelist=[], parse=False):
         self.logger.info('install check: start')
 
         with tempfile.NamedTemporaryFile() as ignore_file:
@@ -254,13 +253,13 @@ class RepoChecker(ReviewBot.ReviewBot):
                 ignore_file.write(item + '\n')
             ignore_file.flush()
 
-            target_project = directories.pop(0) if len(directories) > 1 else None
+            directory_project = directories.pop(0) if len(directories) > 1 else None
 
             # Invoke repo_checker.pl to perform an install check.
             script = os.path.join(SCRIPT_PATH, 'repo_checker.pl')
             parts = ['LC_ALL=C', 'perl', script, arch, ','.join(directories),
                      '-f', ignore_file.name, '-w', ','.join(whitelist)]
-            if target_project:
+            if directory_project:
                 parts.extend(['-r', directory_project])
 
             parts = [pipes.quote(part) for part in parts]
@@ -290,7 +289,8 @@ class RepoChecker(ReviewBot.ReviewBot):
             if stderr:
                 parts.append('<pre>\n' + stderr + '\n' + '</pre>\n')
 
-            return CheckResult(False, ('\n' + ('-' * 80) + '\n\n').join(parts))
+            header = '### [install check & file conflicts](/package/view_file/{}:Staging/dashboard/repo_checker)\n\n'.format(project)
+            return CheckResult(False, header + ('\n' + ('-' * 80) + '\n\n').join(parts))
 
 
         self.logger.info('install check: passed')
@@ -335,7 +335,7 @@ class RepoChecker(ReviewBot.ReviewBot):
         if section:
             yield InstallSection(section, text)
 
-    def cycle_check(self, project, group, arch):
+    def cycle_check(self, project, stagings, arch):
         if self.skip_cycle:
             self.logger.info('cycle check: skip due to --skip-cycle')
             return CheckResult(True, None)
@@ -343,20 +343,26 @@ class RepoChecker(ReviewBot.ReviewBot):
         self.logger.info('cycle check: start')
         cycle_detector = CycleDetector(self.staging_api(project))
         comment = []
-        for index, (cycle, new_edges, new_packages) in enumerate(
-            cycle_detector.cycles(group, arch=arch), start=1):
-            if new_packages:
-                # New package involved in cycle, build comment.
-                comment.append('- #{}: {} package cycle, {} new edges'.format(
-                    index, len(cycle), len(new_edges)))
+        for staging in stagings:
+            first = True
+            for index, (cycle, new_edges, new_packages) in enumerate(
+                cycle_detector.cycles(staging, arch=arch), start=1):
+                if new_packages:
+                    if first:
+                        comment.append('### new [cycle(s)](/project/repository_state/{}/standard)\n'.format(staging))
+                        first = False
 
-                comment.append('   - cycle')
-                for package in sorted(cycle):
-                    comment.append('      - {}'.format(package))
+                    # New package involved in cycle, build comment.
+                    comment.append('- #{}: {} package cycle, {} new edges'.format(
+                        index, len(cycle), len(new_edges)))
 
-                comment.append('   - new edges')
-                for edge in sorted(new_edges):
-                    comment.append('      - ({}, {})'.format(edge[0], edge[1]))
+                    comment.append('   - cycle')
+                    for package in sorted(cycle):
+                        comment.append('      - {}'.format(package))
+
+                    comment.append('   - new edges')
+                    for edge in sorted(new_edges):
+                        comment.append('      - ({}, {})'.format(edge[0], edge[1]))
 
         if len(comment):
             # New cycles, post comment.
@@ -366,15 +372,12 @@ class RepoChecker(ReviewBot.ReviewBot):
         self.logger.info('cycle check: passed')
         return CheckResult(True, None)
 
-    def result_comment(self, project, group, arch, results, comment):
+    def result_comment(self, arch, results, comment):
         """Generate comment from results"""
         comment.append('## ' + arch + '\n')
-        if not results['cycle'].success:
-            comment.append('### new [cycle(s)](/project/repository_state/{}/standard)\n'.format(group))
-            comment.append(results['cycle'].comment + '\n')
-        if not results['install'].success:
-            comment.append('### [install check & file conflicts](/package/view_file/{}:Staging/dashboard/repo_checker)\n'.format(project))
-            comment.append(results['install'].comment + '\n')
+        for result in results.values():
+            if not result.success:
+                comment.append(result.comment)
 
     def check_action_submit(self, request, action):
         if not self.ensure_group(request, action):
