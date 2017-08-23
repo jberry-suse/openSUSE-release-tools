@@ -26,7 +26,6 @@ from osc.core import makeurl
 
 class CommentAPI(object):
     COMMENT_MARKER_REGEX = re.compile(r'<!-- (?P<bot>[^ ]+)(?P<info>(?: [^= ]+=[^ ]+)*) -->')
-    LENGTH_MAX = 65535
 
     def __init__(self, apiurl):
         self.apiurl = apiurl
