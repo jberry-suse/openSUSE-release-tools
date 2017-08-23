@@ -152,9 +152,9 @@ class RepoChecker(ReviewBot.ReviewBot):
 
         comment = []
         for arch in self.target_archs(project):
+            stagings = []
             directories = []
             ignore = set()
-            stagings = []
 
             directories.append(self.mirror(project, arch))
 
@@ -163,9 +163,12 @@ class RepoChecker(ReviewBot.ReviewBot):
                     self.logger.debug('{}/{} not available'.format(staging, arch))
                     continue
 
+                stagings.append(staging)
                 directories.append(self.mirror(staging, arch))
                 ignore.update(self.ignore_from_staging(project, staging, arch))
-                stagings.append(staging)
+
+            if not len(stagings):
+                continue
 
             whitelist = self.package_whitelist(project, arch)
 
@@ -263,7 +266,6 @@ class RepoChecker(ReviewBot.ReviewBot):
                 parts.extend(['-r', directory_project])
 
             parts = [pipes.quote(part) for part in parts]
-            print(parts)
             p = subprocess.Popen(' '.join(parts), shell=True,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE, close_fds=True)
