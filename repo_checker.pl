@@ -18,8 +18,7 @@ require CreatePackageDescr;
 
 my $ret = 0;
 my $arch = shift @ARGV;
-my $dir = shift @ARGV;
-my $dir_sub;
+my @directories = split(/\,/, shift @ARGV);
 my %toignore;
 my $repodir;
 my %whitelist;
@@ -36,9 +35,6 @@ while (@ARGV) {
     }
     elsif ( $switch eq "-r" ) {
         $repodir = shift @ARGV;
-    }
-    elsif ( $switch eq "-s" ) {
-        $dir_sub = shift @ARGV;
     }
     elsif ( $switch eq "-w" ) {
         %whitelist = map { $_ => 1 } split(/\,/, shift @ARGV);
@@ -66,11 +62,6 @@ sub write_package($$) {
         return;
     }
 
-#     if ($ignore == 1 && $package =~ /containerd-test/) {
-#         print STDERR "wut: $package";
-#         exit(120);
-#     }
-
     my $out = CreatePackageDescr::package_snippet($package);
     if ($out eq "" || $out =~ m/=Pkg:    /) {
         print STDERR "ERROR: empty package snippet for: $name\n";
@@ -86,7 +77,7 @@ my $pfile = $tmpdir . "/packages";
 open( PACKAGES, ">", $pfile ) || die 'can not open';
 print PACKAGES "=Ver: 2.0\n";
 
-# Allow $repodir to be empty indicating only to review $dir.
+# Allow $repodir to be empty indicating to only review $directories.
 if (length($repodir)) {
     my @rpms = glob("$repodir/*.rpm");
     foreach my $package (@rpms) {
@@ -94,26 +85,14 @@ if (length($repodir)) {
     }
 }
 
-@rpms = glob("$dir/*.rpm");
-foreach my $package (@rpms) {
-    my $name = write_package( 0, $package );
-    if (!exists($whitelist{$name})) {
-        $targets{$name} = 1;
-    }
-}
-
-# if ($dir =~ m/.*?:Staging:[A-Z]$/) {
-if (length($dir_sub)) {
-#     $dir = $dir . ":DVD";
-    @rpms = glob("$dir_sub/*.rpm");
+foreach $directory (@directories) {
+    @rpms = glob("$directory/*.rpm");
     foreach my $package (@rpms) {
-#         print("$package\n");
         my $name = write_package( 0, $package );
         if (!exists($whitelist{$name})) {
             $targets{$name} = 1;
         }
     }
-#     exit(1);
 }
 
 close(PACKAGES);
@@ -130,8 +109,6 @@ while (<INSTALL>) {
         $inc = 0;
     }
     if ( $_ =~ /^can't install (.*)-[^-]+-[^-]+:$/ ) {
-#         $inc = 0;
-
         if ( defined $targets{$1} ) {
             $inc = 1;
             $ret = 1;
@@ -161,8 +138,6 @@ while (<CONFLICTS>) {
         $inc = 0;
     }
     if ( $_ =~ /^found conflict of (.*)-[^-]+-[^-]+ with (.*)-[^-]+-[^-]+:$/ ) {
-#         $inc = 0;
-
         if ( defined $targets{$1} || defined $targets{$2} ) {
             $inc = 1;
             $ret = 1;

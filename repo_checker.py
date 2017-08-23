@@ -49,7 +49,7 @@ class RepoChecker(ReviewBot.ReviewBot):
             parse = project if post_comments else False
             results = {
                 'cycle': CheckResult(True, None),
-                'install': self.install_check('', directory_project, '', arch, [], [], parse=parse),
+                'install': self.install_check([directory_project], arch, parse=parse),
             }
 
             if not all(result.success for _, result in results.items()):
@@ -141,10 +141,6 @@ class RepoChecker(ReviewBot.ReviewBot):
     def ensure_group(self, request, action):
         project = action.tgt_project
         group = self.requests_map[int(request.reqid)]
-        if re.match(r'.*?:Staging:[A-Z]$', group):
-            group_sub = group + ':DVD'
-        else:
-            group_sub = False
 
         if group == self.group:
             # Only process a group the first time it is encountered.
@@ -152,80 +148,29 @@ class RepoChecker(ReviewBot.ReviewBot):
 
         self.logger.info('group {}'.format(group))
         self.group = group
-        self.group_sub = group_sub # TODO yikes
         self.group_pass = True
 
         comment = []
         for arch in self.target_archs(project):
-            if arch not in self.target_archs(group):
-                self.logger.debug('{}/{} not available'.format(group, arch))
-                continue
-            if group_sub and arch in self.target_archs(group_sub):
-                group_sub_do = True
-            else:
-                group_sub_do = False
-            #print(group, group_sub, group_sub_do, arch, self.target_archs(group_sub))
-
-            # Mirror both projects the first time each are encountered.
-            directory_project = self.mirror(project, arch)
-            directory_group = self.mirror(group, arch)
-            if group_sub_do:
-                directory_group_sub = self.mirror(group_sub, arch)
-            else:
-                directory_group_sub = ''
-
-            # Generate list of rpms to ignore from the project consisting of all
-            # packages in group and those that were deleted.
+            directories = []
             ignore = set()
 
-            #packages = package_list(self.apiurl, group)
-            self.ignore_from_package_list(project, group, arch, ignore)
-            #for package in packages:
-                #self.ignore_from_package(project, a.tgt_package, arch, ignore)
+            directories.append(self.mirror(project, arch))
 
-            if group_sub_do:
-            #if group_sub_do and False:
-                #packages = package_list(self.apiurl, group_sub)
-                self.ignore_from_package_list(project, group_sub, arch, ignore)
+            for staging in self.staging_api(project).staging_walk(group):
+                if arch not in self.target_archs(staging):
+                    self.logger.debug('{}/{} not available'.format(staging, arch))
+                    continue
 
-            #if re.match(r'.*?:Staging:[A-Z]$', group):
-                #packages = package_list(self.apiurl, group + ':DVD')
-                #self.ignore_from_package_list(project, packages, arch, ignore)
-                #for package in packages:
-                    #self.ignore_from_package(project, a.tgt_package, arch, ignore)
-
-            #sys.exit()
-            #self.ignore_from_repo(directory_group, ignore)
-            #if re.match(r'.*?:Staging:[A-Z]$', group):
-                #directory = os.path.join(CACHEDIR, group + ':DVD', 'standard', arch)
-                #self.ignore_from_repo(directory, ignore)
-
-            #for r in self.groups[group]:
-                #a = r.actions[0]
-                #if a.type == 'delete':
-                    #self.ignore_from_package(project, a.tgt_package, arch, ignore)
-
-            #print(ignore)
-            #print(len(ignore))
-            #for i in ignore:
-                #print(i)
-
-            #ignore2 = set()
-            #self.ignore_from_repo(directory_group, ignore2)
-            #print(len(ignore2))
-            #a = 0
-            #for i in ignore2:
-                #print(i)
-                #a += 1
-                #if a >= 100:
-                    #break
+                directories.append(self.mirror(staging, arch))
+                ignore.update(self.ignore_from_staging(project, staging, arch))
 
             whitelist = self.package_whitelist(project, arch)
 
             # Perform checks on group.
             results = {
-                'cycle': self.cycle_check(project, group, arch),
-                'install': self.install_check(directory_project, directory_group, directory_group_sub, arch, ignore, whitelist),
+                'cycle': self.cycle_check(project, group, arch), # TODO also loop, both should take list
+                'install': self.install_check(directories, arch, ignore, whitelist),
             }
 
             if not all(result.success for _, result in results.items()):
@@ -280,36 +225,18 @@ class RepoChecker(ReviewBot.ReviewBot):
         self.mirrored.add((project, arch))
         return directory
 
-    def ignore_from_repo(self, directory, ignore):
-        """Extract rpm names from mirrored repo directory."""
-        for filename in os.listdir(directory):
-            if not filename.endswith('.rpm'):
-                continue
-            _, basename = filename.split('-', 1)
-            ignore.add(basename[:-4])
-
-    def ignore_from_package(self, project, package, arch, ignore):
+    # TODO Documentation
+    #def ignore_from_package_list(self, project, group, arch, ignore):
+    def ignore_from_staging(self, project, staging, arch):
         """Extract rpm names from current build of package."""
-        try:
-            # TODO Perhaps use package_binary_list() to avoid lots of queries.
-            for binary in binary_list(self.apiurl, project, 'standard', arch, package):
-                ignore.add(binary.name)
-        except HTTPError as e:
-            # Ignore package not found new package submissions.
-            if e.code != 404:
-                raise e
-
-    def ignore_from_package_list(self, project, group, arch, ignore):
-        """Extract rpm names from current build of package."""
-        _, binary_map = package_binary_list(self.apiurl, group, 'standard', arch)
+        _, binary_map = package_binary_list(self.apiurl, staging, 'standard', arch)
         packages = set(binary_map.values())
-        #print(len(packages))
 
         binaries, _ = package_binary_list(self.apiurl, project, 'standard', arch)
         for binary in binaries:
             if binary.package in packages:
-                #print(binary.filename, binary.name)
-                ignore.add(binary.name)
+                #ignore.add(binary.name)
+                yield binary.name
 
     def package_whitelist(self, project, arch):
         prefix = 'repo_checker-package-whitelist'
@@ -318,7 +245,7 @@ class RepoChecker(ReviewBot.ReviewBot):
             whitelist.update(self.staging_config[project].get(key, '').split(' '))
         return whitelist
 
-    def install_check(self, directory_project, directory_group, directory_group_sub, arch, ignore, whitelist, parse=False):
+    def install_check(self, directories, arch, ignore=[], whitelist=[], parse=False):
         self.logger.info('install check: start')
 
         with tempfile.NamedTemporaryFile() as ignore_file:
@@ -327,13 +254,17 @@ class RepoChecker(ReviewBot.ReviewBot):
                 ignore_file.write(item + '\n')
             ignore_file.flush()
 
+            target_project = directories.pop(0) if len(directories) > 1 else None
+
             # Invoke repo_checker.pl to perform an install check.
             script = os.path.join(SCRIPT_PATH, 'repo_checker.pl')
-            #directory_group_sub = ''
-            parts = ['LC_ALL=C', 'perl', script, arch, directory_group,
-                     '-r', directory_project, '-f', ignore_file.name,
-                     '-s', directory_group_sub, '-w', ','.join(whitelist)]
+            parts = ['LC_ALL=C', 'perl', script, arch, ','.join(directories),
+                     '-f', ignore_file.name, '-w', ','.join(whitelist)]
+            if target_project:
+                parts.extend(['-r', directory_project])
+
             parts = [pipes.quote(part) for part in parts]
+            print(parts)
             p = subprocess.Popen(' '.join(parts), shell=True,
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE, close_fds=True)
