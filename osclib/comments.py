@@ -137,10 +137,8 @@ class CommentAPI(object):
         if not comment:
             raise ValueError('Empty comment.')
 
-        comment = comment.strip().encode('utf-8')
-        if len(comment) > self.LENGTH_MAX:
-            comment = self.truncate(comment)
-        print(len(comment))
+        # Always encode as utf-8 to ensure truncate handles length properly.
+        comment = self.truncate(comment.strip().encode('utf-8'))
 
         query = {}
         if parent_id:
@@ -148,99 +146,35 @@ class CommentAPI(object):
         url = self._prepare_url(request_id, project_name, package_name, query)
         return http_POST(url, data=comment)
 
-    def truncate(self, comment, suffix='...', length=65535):
-        #print('truncate', len(comment), suffix, length)
+    @staticmethod
+    def truncate(comment, suffix='...', length=65535):
+        # Handle very short length by dropping suffix and just chopping comment.
         if length <= len(suffix) + len('\n</pre>'):
             return comment[:length]
         if len(comment) <= length:
             return comment
 
-        snip = length - len(suffix)
-        if comment.find('<pre>', 0, snip) != -1:
-            # leave space for simplicity
-            snip -= len('\n</pre>')
-        #print('snip', snip)
-        #  0, 5 NO
-        # -1, 4
-        # -2, 3
-        # -3, 2
-        # -4, 1
-        # -5, 0 NO
-        
-        # what really after is did cursor land in the middle of a tag
-        pre_last = max(comment.rfind('<pre>', snip - 4, snip + 4),
-                       comment.rfind('</pre>', snip - 5, snip + 5))
-        #print('pre_last', pre_last)
-        if pre_last != -1:
-        #if snip - pre_last <= 5:
-        #if self.LENGTH_MAX - pre_last <= 4:
-            snip = pre_last
-        
-        #pre_last = comment.rfind('<pre>', 0, snip + 4)
-        #pre_last = max(comment.rfind('<pre>', 0, snip + 4),
-                       #comment.rfind('</pre>', 0, snip + 5))
-        ##print('pre_last', pre_last)
-        #if snip - pre_last <= 5:
-        ##if self.LENGTH_MAX - pre_last <= 4:
-            #snip = pre_last
-        
-        comment = comment[:snip]
-        
-        # check if need to close a <pre>
-        #print('<pre>', comment.count('<pre>'))
-        #print('</pre>', comment.count('</pre>'))
-        #if '</pre>' not in suffix and comment.count('<pre>') > comment.count('</pre>'):
+        # Determine the point at which to end by leaving room for suffix.
+        end = length - len(suffix)
+        if comment.find('<pre>', 0, end) != -1:
+            # For the sake of simplicity leave space for pre tag closing even if
+            # after end point moving it may no longer be necessary. Otherwise,
+            # it requires handling this recursive with some fun edges cases.
+            end -= len('\n</pre>')
+
+        # Check for the end location landing inside a pre tag and correct by
+        # moving in front of the tag. Landing on the ends is a noop.
+        pre_index = max(comment.rfind('<pre>', end - 4, end + 4),
+                        comment.rfind('</pre>', end - 5, end + 5))
+        if pre_index != -1:
+            end = pre_index
+
+        comment = comment[:end]
+
+        # Check for unbalanced pre tags and add a closing tag.
         if comment.count('<pre>') > comment.count('</pre>'):
             suffix += '\n</pre>'
-        
-        return comment + suffix
 
-    @staticmethod
-    def find_last(comment, tag):
-        return comment.rfind('<' + tag + '>', 0, snip + 4)
-
-    def truncate_pre(self, tag):
-        pre_last = comment.rfind('<' + tag + '>', 0, snip + 4)
-        #print('pre_last', pre_last)
-        if snip - pre_last <= 4:
-        #if self.LENGTH_MAX - pre_last <= 4:
-            snip = pre_last
-
-    def truncate2(self, comment, suffix='...', length=65535):
-        print('truncate', len(comment), suffix)
-        #suffix = '...'
-        #if comment.find('<pre>', end=self.LENGTH_MAX)
-        #if comment.endswith('</pre>'):
-            #suffix += '\n</pre>'
-        snip = self.LENGTH_MAX - len(suffix)
-        snip = length - len(suffix)
-        print(snip)
-        # Do no care at + 5 since then at the beginning
-        # Whole idea is not to snip in the middle of a <pre> tag
-        #pre_last = comment.rfind('<pre>', 0, self.LENGTH_MAX + 4)
-        pre_last = comment.rfind('<pre>', 0, snip + 4)
-        print('pre_last', pre_last)
-        if length - pre_last <= 4:
-        #if self.LENGTH_MAX - pre_last <= 4:
-            snip = pre_last
-        #comment = comment[:self.LENGTH_MAX - len(suffix)]
-        print('snip', snip)
-        original = comment
-        comment = comment[:snip]
-        
-        # check if need to close a <pre>
-        print('<pre>', comment.count('<pre>'))
-        print('</pre>', comment.count('</pre>'))
-        #if '</pre>' not in suffix and comment.count('<pre>') > comment.count('</pre>'):
-        if comment.count('<pre>') > comment.count('</pre>'):
-            #print(comment)
-            #return self.truncate(original, suffix + '\n</pre>')
-             #+ '\n</pre>'
-            suffix2 = suffix + '\n</pre>'
-            if len(comment) + len(suffix2) > length:
-                return self.truncate(comment, suffix, length - len(suffix2))
-
-        #if length - len(comment) > len(suffix):
         return comment + suffix
 
     def delete(self, comment_id):

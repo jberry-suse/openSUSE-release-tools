@@ -13,7 +13,6 @@ class TestComment(unittest.TestCase):
             truncated = self.api.truncate(comment, length=i)
             print(truncated)
             self.assertEqual(len(truncated), i)
-        #self.fail()
 
     def test_truncate_pre(self):
         comment = """
@@ -44,4 +43,6 @@ handle
             self.assertTrue(len(truncated) <= i, '{} <= {}'.format(len(truncated), i))
             self.assertEqual(truncated.count('<pre>'), truncated.count('</pre>'))
             self.assertFalse(len(re.findall(r'</?\w+[^\w>]', truncated)))
-        #self.fail()
+            tag_count = truncated.count('<pre>') + truncated.count('</pre>')
+            self.assertEqual(tag_count, truncated.count('<'))
+            self.assertEqual(tag_count, truncated.count('>'))
