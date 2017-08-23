@@ -26,27 +26,6 @@ CheckResult = namedtuple('CheckResult', ('success', 'comment'))
 INSTALL_REGEX = r"^(?:can't install (.*?)|found conflict of (.*?) with (.*?)):$"
 InstallSection = namedtuple('InstallSection', ('binaries', 'text'))
 
-def utf8_lead_byte(b):
-    '''A UTF-8 intermediate byte starts with the bits 10xxxxxx.'''
-    return (ord(b) & 0xC0) != 0x80
-
-def utf8_byte_truncate(text, max_bytes):
-    '''If text[max_bytes] is not a lead byte, back up until a lead byte is
-    found and truncate before that character.'''
-    utf8 = text.encode('utf-8')
-    if len(utf8) <= max_bytes:
-        return utf8
-    i = max_bytes
-    print('max_bytes', max_bytes)
-    while i > 0 and not utf8_lead_byte(utf8[i]):
-        i -= 1
-    print('i', i)
-    return utf8[:i]
-
-def unicode_truncate(s, length, encoding='utf-8'):
-    encoded = s.encode(encoding)[:length]
-    return encoded.decode(encoding, 'ignore')
-
 class RepoChecker(ReviewBot.ReviewBot):
     def __init__(self, *args, **kwargs):
         ReviewBot.ReviewBot.__init__(self, *args, **kwargs)
@@ -86,21 +65,12 @@ class RepoChecker(ReviewBot.ReviewBot):
         self.logger.info('{} package comments'.format(len(self.package_results)))
 
         for package, sections in self.package_results.items():
-            template = 'The version of this package in `{}` has installation issues and may not be installable:\n\n<pre>\n'.format(project) # {}\n</pre>
+            message = 'The version of this package in `{}` has installation issues and may not be installable:'.format(project)
 
             # Sort sections by text to group binaries together.
-            #space_remaining = 65535 - len(template) # has the {} in it
-            space_remaining = 65535 - len(template) - 1500 # has the {} in it
             sections = sorted(sections, key=lambda s: s.text)
-            message = '\n'.join([section.text for section in sections]).strip()
-            #if len(message) > space_remaining:
-            if sys.getsizeof(message) > space_remaining * 2:
-                # Truncate messages to avoid crashing OBS.
-                #message = message[:space_remaining - 3] + '...'
-                #message = utf8_byte_truncate(message, (space_remaining - 3) * 2) + '...'
-                message = unicode_truncate(message, space_remaining - 3) + '...'
-            message = template + message + '\n</pre>'
-            #print(sys.getsizeof(message))
+            message += '\n\n<pre>\n{}\n</pre>'.format(
+                '\n'.join([section.text for section in sections]).strip())
 
             # Generate a hash based on the binaries involved and the number of
             # sections. This eliminates version or release changes from causing
@@ -264,44 +234,14 @@ class RepoChecker(ReviewBot.ReviewBot):
                 self.result_comment(project, group, arch, results, comment)
 
         if not self.group_pass:
-            text = ''
-            #length = 0
-            max_length = 65535 - 1000
-            #max_length = 65535
-            for line in comment:
-                text += line + '\n'
-                #length += len(line) + 1
-                #print(len(text), sys.getsizeof(text))
-
-                #if length > max_length:
-                if sys.getsizeof(text) > max_length * 2:
-                    #print(text[-50:])
-                    if text.strip().endswith('</pre>'):
-                        # Truncate comments to avoid crashing OBS.
-                        #text = text[:max_length - 10] + '...\n</pre>'
-                        #text = utf8_byte_truncate(text, (max_length - 10) * 2) + '...\n</pre>'
-                        text = unicode_truncate(text, max_length - 10) + '...\n</pre>'
-                        #text = utf8_byte_truncate(text, (max_length - 10) * 2)
-                    else:
-                        #text = text[:max_length - 3] + '...'
-                        #text = utf8_byte_truncate(text, (max_length - 3) * 2) + '...'
-                        text = unicode_truncate(text, max_length - 3) + '...'
-                    break
-            #print(sys.getsizeof(text))
-            #print(sys.getsizeof('...\n</pre>'))
-            #print(sys.getsizeof('...\n</pre>'.encode('utf-8')))
-            #print(len('...\n</pre>'.encode('utf-8')))
-            #131070
-            #131050
-
             # Some checks in group did not pass, post comment.
             self.comment_write(state='seen', result='failed', project=group,
-                               #message='\n'.join(comment).strip(), identical=True)
-                               message=text.strip(), identical=True)
+                               message='\n'.join(comment).strip(), identical=True)
         else:
+            # Post passed comment only if previous failed comment.
             text = 'Previously reported problems have been resolved.'
             self.comment_write(state='done', result='passed', project=group,
-                               message=text.strip(), identical=True, only_replace=True)
+                               message=text, identical=True, only_replace=True)
 
         return self.group_pass
 
@@ -498,8 +438,6 @@ class RepoChecker(ReviewBot.ReviewBot):
 
     def result_comment(self, project, group, arch, results, comment):
         """Generate comment from results"""
-        #if len(comment) > 65535:
-            #return
         comment.append('## ' + arch + '\n')
         if not results['cycle'].success:
             comment.append('### new [cycle(s)](/project/repository_state/{}/standard)\n'.format(group))
@@ -507,9 +445,6 @@ class RepoChecker(ReviewBot.ReviewBot):
         if not results['install'].success:
             comment.append('### [install check & file conflicts](/package/view_file/{}:Staging/dashboard/repo_checker)\n'.format(project))
             comment.append(results['install'].comment + '\n')
-        #if len(comment) > 65535:
-            ## Truncate comments to avoid crashing OBS.
-            #comment = comment[:65535 - 7] + '...\n```'
 
     def check_action_submit(self, request, action):
         if not self.ensure_group(request, action):
