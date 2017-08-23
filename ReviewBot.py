@@ -460,10 +460,8 @@ class ReviewBot(object):
              (not identical and comment['comment'].count('\n') == message.count('\n')))
         ):
             # Assume same state/result and number of lines in message is duplicate.
-            self.logger.debug('previous comment on {} too similar'.format(debug_key))
+            self.logger.debug('previous comment too similar on {}'.format(debug_key))
             return
-
-        self.logger.debug('adding comment to {}: {}'.format(debug_key, message))
 
         if comment is None:
             # Broaden search to include any comment state.
@@ -473,8 +471,10 @@ class ReviewBot(object):
             if not self.dryrun:
                 self.comment_api.delete(comment['id'])
         elif only_replace:
-            self.logger.debug('no previous comment to replace in {}'.format(debug_key))
+            self.logger.debug('no previous comment to replace on {}'.format(debug_key))
             return
+
+        self.logger.debug('adding comment to {}: {}'.format(debug_key, message))
         if not self.dryrun:
             self.comment_api.add_comment(comment=str(message), **kwargs)
 
