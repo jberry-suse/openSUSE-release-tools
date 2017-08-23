@@ -350,7 +350,6 @@ class RepoChecker(ReviewBot.ReviewBot):
                 self.install_check_sections_group(parse, arch, sections)
 
             # Format output as markdown comment.
-            #code = '```\n'
             parts = []
 
             stdout = stdout.strip()
