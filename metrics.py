@@ -14,13 +14,10 @@ from osclib.cache import Cache
 from osclib.conf import Config
 from osclib.stagingapi import StagingAPI
 
-try:
-    from xml.etree import cElementTree as ET
-except ImportError:
-    import cElementTree as ET
+from lxml import etree as ET
 
 #CountChange = namedtuple('CountChange', ('timestamp', 'increase'))
-InfluxLine = namedtuple('InfluxLine', ('tags', 'fields', 'delta', 'timestamp'))
+InfluxLine = namedtuple('InfluxLine', ('measurement', 'tags', 'fields', 'delta', 'timestamp'))
 
 
 class Staging(object):
@@ -36,6 +33,30 @@ class Staging(object):
 
     def remove(self, request):
         self.requests.remove(int(request.reqid))
+
+def timestamp(datetime):
+    return int(datetime.strftime('%s'))
+
+def walk_lines(lines):
+    counters = {}
+    #lines = sorted(lines, key=lambda l: l.timestamp)
+    for line in sorted(lines, key=lambda l: l.timestamp):
+        #print(line.timestamp)
+        if line.delta:
+            #counters_tag = counters.setdefault(line.tags, {})
+            counters_tag = counters.setdefault(line.tags['target'], {})
+            for key, value in line.fields.items():
+                #counter = counters_tag.setdefault(key, 0)
+                #print(key, counter, value)
+                #counter += value
+                #counters_tag[key] = counter
+                #line.fields[key] = counter
+                line.fields[key] = counters_tag[key] = counters_tag.setdefault(key, 0) + value
+                #line.fields[key] = counters_tag[key]
+
+            #print(counters)
+
+        print(line.timestamp, line.measurement, line.tags, line.fields)
 
 def main(args):
     osc.conf.get_config(override_apiurl=args.apiurl)
@@ -80,6 +101,21 @@ def main(args):
         #break
         #print(request.reqid)
         print(request.get('id'))
+
+        print(timestamp(final_at))
+        
+        
+        first_staged = dateutil.parser.parse(request.xpath('review[@by_group="factory-staging"]/history/@when')[0])
+        
+        bucket_lines.append(InfluxLine('bucket',
+                                       {'target': args.project, 'id': 'backlog'},
+                                       {'count': 1}, True, timestamp(created_at)))
+        bucket_lines.append(InfluxLine('bucket',
+                                       {'target': args.project, 'id': 'backlog'},
+                                       {'count': -1}, True, timestamp(first_staged)))
+
+        print(bucket_lines)
+
         #root = request.to_xml()
         #ET.dump(root)
         root = request
@@ -87,7 +123,7 @@ def main(args):
             history = review.find('history') # removed when parsed by request
             print(review.get('when'))
             print(review.get('by_project'))
-            if history:
+            if history is not None:
                 print(':{}'.format(history.get('when')))
         #ET.dump(request.to_xml())
         #for review in request.reviews:
@@ -126,6 +162,8 @@ def main(args):
 
     #request = osc.core.get_request(apiurl, str(461992))
     #print(request)
+    
+    walk_lines(bucket_lines)
 
 if __name__ == '__main__':
     description = '...'
