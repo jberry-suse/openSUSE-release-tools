@@ -2,6 +2,8 @@
 
 import argparse
 from collections import namedtuple
+from datetime import datetime
+import dateutil.parser
 import os
 import sys
 
@@ -65,6 +67,16 @@ def main(args):
         print(request.find('state').get('name'))
         if request.find('state').get('name') != 'accepted':
             continue
+        
+        #ET.dump(request.find('history'))
+        created_at = dateutil.parser.parse(request.find('history').get('when'))
+        final_at = dateutil.parser.parse(request.find('state').get('when'))
+        
+        open_for = (final_at - created_at).total_seconds()
+        print(final_at - created_at)
+        print(open_for)
+        #delta = datetime.utcnow() - created
+        #request.set('aged', str(delta.total_seconds() >= self.request_age_threshold))
         #break
         #print(request.reqid)
         print(request.get('id'))
