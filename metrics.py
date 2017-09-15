@@ -58,8 +58,10 @@ def walk_lines(lines, target):
                 #counter += value
                 #counters_tag[key] = counter
                 #line.fields[key] = counter
-                line.fields[key] = counters_tag[key] = counters_tag.setdefault(key, 0) + value
+                #line.fields[key] = counters_tag[key] = counters_tag.setdefault(key, 0) + value
+                counters_tag[key] = counters_tag.setdefault(key, 0) + value
                 #line.fields[key] = counters_tag[key]
+            line.fields.update(counters_tag)
 
             #print(counters)
 
@@ -92,6 +94,7 @@ def main(args):
                                          req_state=('accepted', 'revoked', 'superseded'),
                                          #req_type='submit', # TODO May make sense to query submit and delete seperately or alter the function to allow multiple to reduce massive result set
                                          withfullhistory=True) # withfullhistory requires ...osc
+    first = True
     for request in requests:
         print(request.find('state').get('name'))
         if request.find('state').get('name') != 'accepted':
@@ -116,6 +119,13 @@ def main(args):
         first_staged = date_parse(request.xpath('review[@by_group="factory-staging"]/history/@when')[0])
         
         # TODO If first entry might as well add a 0 entry
+        
+        #total,target=openSUSE:Factory backlog=10,ignore=7,open=1337
+#staging,target=openSUSE:Factory,id=A state=building,count=7
+#request,target=openSUSE:Factory,source=server:php:applications,id=1234,state=accepted backlog=1234,time_to_first=2334,moved=1234 1239019535 (of accept)
+        if first:
+            line('total', {}, {'backlog': 0, 'ignore': 0, 'open': 0}, True, timestamp(created_at) - 1)
+            first = False
         
         line('total', {}, {'backlog': 1}, True, timestamp(created_at))
         line('total', {}, {'backlog': -1}, True, timestamp(first_staged))
