@@ -3,7 +3,8 @@
 import argparse
 from collections import namedtuple
 from datetime import datetime
-import dateutil.parser
+from dateutil.parser import parse as date_parse
+#dateutil.parser.parse
 import os
 import sys
 
@@ -34,17 +35,23 @@ class Staging(object):
     def remove(self, request):
         self.requests.remove(int(request.reqid))
 
+lines = []
+def line(*args):
+    lines.append(InfluxLine(*args))
+
 def timestamp(datetime):
     return int(datetime.strftime('%s'))
 
-def walk_lines(lines):
+def walk_lines(lines, target):
     counters = {}
     #lines = sorted(lines, key=lambda l: l.timestamp)
     for line in sorted(lines, key=lambda l: l.timestamp):
         #print(line.timestamp)
         if line.delta:
             #counters_tag = counters.setdefault(line.tags, {})
-            counters_tag = counters.setdefault(line.tags['target'], {})
+            #key = '{}::{}'.format(line.measurement, line.tags['target'])
+            #counters_tag = counters.setdefault(key, {})
+            counters_tag = counters.setdefault(line.measurement, {})
             for key, value in line.fields.items():
                 #counter = counters_tag.setdefault(key, 0)
                 #print(key, counter, value)
@@ -56,6 +63,7 @@ def walk_lines(lines):
 
             #print(counters)
 
+        line.tags['target'] = target
         print(line.timestamp, line.measurement, line.tags, line.fields)
 
 def main(args):
@@ -79,7 +87,7 @@ def main(args):
     #print(stagings)
 
     i = 0
-    bucket_lines = []
+    #bucket_lines = []
     requests = osc.core.get_request_list(apiurl, args.project,
                                          req_state=('accepted', 'revoked', 'superseded'),
                                          #req_type='submit', # TODO May make sense to query submit and delete seperately or alter the function to allow multiple to reduce massive result set
@@ -90,8 +98,8 @@ def main(args):
             continue
         
         #ET.dump(request.find('history'))
-        created_at = dateutil.parser.parse(request.find('history').get('when'))
-        final_at = dateutil.parser.parse(request.find('state').get('when'))
+        created_at = date_parse(request.find('history').get('when'))
+        final_at = date_parse(request.find('state').get('when'))
         
         open_for = (final_at - created_at).total_seconds()
         print(final_at - created_at)
@@ -105,16 +113,24 @@ def main(args):
         print(timestamp(final_at))
         
         
-        first_staged = dateutil.parser.parse(request.xpath('review[@by_group="factory-staging"]/history/@when')[0])
+        first_staged = date_parse(request.xpath('review[@by_group="factory-staging"]/history/@when')[0])
         
-        bucket_lines.append(InfluxLine('bucket',
-                                       {'target': args.project, 'id': 'backlog'},
-                                       {'count': 1}, True, timestamp(created_at)))
-        bucket_lines.append(InfluxLine('bucket',
-                                       {'target': args.project, 'id': 'backlog'},
-                                       {'count': -1}, True, timestamp(first_staged)))
+        # TODO If first entry might as well add a 0 entry
+        
+        line('total', {}, {'backlog': 1}, True, timestamp(created_at))
+        line('total', {}, {'backlog': -1}, True, timestamp(first_staged))
+        
+        #bucket_lines.append(InfluxLine('total', {}, {'backlog': 1}, True, timestamp(created_at)))
+        #bucket_lines.append(InfluxLine('total', {}, {'backlog': -1}, True, timestamp(first_staged)))
+        
+        #bucket_lines.append(InfluxLine('bucket',
+                                       #{'target': args.project, 'id': 'backlog'},
+                                       #{'count': 1}, True, timestamp(created_at)))
+        #bucket_lines.append(InfluxLine('bucket',
+                                       #{'target': args.project, 'id': 'backlog'},
+                                       #{'count': -1}, True, timestamp(first_staged)))
 
-        print(bucket_lines)
+        #print(bucket_lines)
 
         #root = request.to_xml()
         #ET.dump(root)
@@ -163,7 +179,8 @@ def main(args):
     #request = osc.core.get_request(apiurl, str(461992))
     #print(request)
     
-    walk_lines(bucket_lines)
+    #walk_lines(bucket_lines, args.project)
+    walk_lines(lines, args.project)
 
 if __name__ == '__main__':
     description = '...'
