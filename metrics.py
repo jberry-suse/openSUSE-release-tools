@@ -36,8 +36,15 @@ class Staging(object):
         self.requests.remove(int(request.reqid))
 
 lines = []
+timestamp_earliest = sys.maxint
+
 def line(*args):
-    lines.append(InfluxLine(*args))
+    global lines, timestamp_earliest
+
+    line = InfluxLine(*args)
+    lines.append(line)
+
+    timestamp_earliest = min(timestamp_earliest, line.timestamp)
 
 def timestamp(datetime):
     return int(datetime.strftime('%s'))
@@ -68,6 +75,10 @@ def walk_lines(lines, target):
         line.tags['target'] = target
         print(line.timestamp, line.measurement, line.tags, line.fields)
 
+#def start_entries(first_entry):
+    #line('total', {}, {'backlog': 0, 'ignore': 0, 'open': 0, 'staged': 0},
+                 ##True, timestamp(created_at) - 1)
+
 def main(args):
     osc.conf.get_config(override_apiurl=args.apiurl)
     osc.conf.config['debug'] = args.debug
@@ -93,12 +104,15 @@ def main(args):
     requests = osc.core.get_request_list(apiurl, args.project,
                                          req_state=('accepted', 'revoked', 'superseded'),
                                          #req_type='submit', # TODO May make sense to query submit and delete seperately or alter the function to allow multiple to reduce massive result set
+                                         exclude_target_projects=[args.project],
                                          withfullhistory=True) # withfullhistory requires ...osc
-    first = True
+    #first = True
     for request in requests:
         print(request.find('state').get('name'))
         if request.find('state').get('name') != 'accepted':
             continue
+        if request.find('action').get('type') != 'submit':
+            continue # never staged by factory-staging
         
         #ET.dump(request.find('history'))
         created_at = date_parse(request.find('history').get('when'))
@@ -123,12 +137,21 @@ def main(args):
         #total,target=openSUSE:Factory backlog=10,ignore=7,open=1337
 #staging,target=openSUSE:Factory,id=A state=building,count=7
 #request,target=openSUSE:Factory,source=server:php:applications,id=1234,state=accepted backlog=1234,time_to_first=2334,moved=1234 1239019535 (of accept)
-        if first:
-            line('total', {}, {'backlog': 0, 'ignore': 0, 'open': 0}, True, timestamp(created_at) - 1)
-            first = False
+        #if first:
+            #print('FIRST!!!!!!')
+            #line('total', {}, {'backlog': 0, 'ignore': 0, 'open': 0, 'staged': 0},
+                 #True, timestamp(created_at) - 1)
+            #first = False
         
         line('total', {}, {'backlog': 1}, True, timestamp(created_at))
         line('total', {}, {'backlog': -1}, True, timestamp(first_staged))
+        #line('total', {}, {'backlog': -1, 'staged': 1}, True, timestamp(first_staged))
+        
+        i += 1
+        if i == 400:
+            break
+        
+        continue
         
         #bucket_lines.append(InfluxLine('total', {}, {'backlog': 1}, True, timestamp(created_at)))
         #bucket_lines.append(InfluxLine('total', {}, {'backlog': -1}, True, timestamp(first_staged)))
@@ -189,6 +212,11 @@ def main(args):
     #request = osc.core.get_request(apiurl, str(461992))
     #print(request)
     
+    
+    # Create starter line so all values are inherited.
+    line('total', {}, {'backlog': 0, 'ignore': 0, 'open': 0, 'staged': 0},
+                True, timestamp_earliest - 1)
+
     #walk_lines(bucket_lines, args.project)
     walk_lines(lines, args.project)
 
