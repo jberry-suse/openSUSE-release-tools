@@ -72,7 +72,7 @@ def walk_lines(lines, target):
 
             #print(counters)
 
-        line.tags['target'] = target
+        #line.tags['target'] = target
         print(line.timestamp, line.measurement, line.tags, line.fields)
 
 #def start_entries(first_entry):
@@ -108,6 +108,7 @@ def main(args):
                                          withfullhistory=True) # withfullhistory requires ...osc
     #first = True
     for request in requests:
+        request_id = int(request.get('id'))
         print(request.find('state').get('name'))
         if request.find('state').get('name') != 'accepted':
             continue
@@ -143,8 +144,8 @@ def main(args):
                  #True, timestamp(created_at) - 1)
             #first = False
         
-        line('total', {}, {'backlog': 1}, True, timestamp(created_at))
-        line('total', {}, {'backlog': -1}, True, timestamp(first_staged))
+        line('total', {'request': request_id, 'event': 'create'}, {'backlog': 1}, True, timestamp(created_at))
+        line('total', {'request': request_id, 'event': 'select'}, {'backlog': -1}, True, timestamp(first_staged))
         #line('total', {}, {'backlog': -1, 'staged': 1}, True, timestamp(first_staged))
         
         i += 1
