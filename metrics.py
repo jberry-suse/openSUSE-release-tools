@@ -76,7 +76,7 @@ def walk_lines(lines, target):
 
             #print(counters)
 
-        #line.tags['target'] = target
+        line.tags['target'] = target
         print(line.timestamp, line.measurement, line.tags, line.fields)
 
 #def start_entries(first_entry):
