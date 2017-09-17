@@ -1505,7 +1505,7 @@
               "format": "short",
               "label": null,
               "logBase": 1,
-              "max": null,
+              "max": "100",
               "min": null,
               "show": true
             },
@@ -1635,7 +1635,7 @@
               "format": "short",
               "label": null,
               "logBase": 1,
-              "max": null,
+              "max": "100",
               "min": null,
               "show": true
             },
@@ -1765,7 +1765,7 @@
               "format": "short",
               "label": null,
               "logBase": 1,
-              "max": null,
+              "max": "100",
               "min": null,
               "show": true
             },
@@ -1846,6 +1846,7 @@
             }
           ],
           "title": "Staged - User",
+          "transparent": false,
           "type": "grafana-piechart-panel",
           "valueName": "total"
         },
@@ -1993,8 +1994,8 @@
     "list": []
   },
   "time": {
-    "from": "2017-04-19T13:32:55.887Z",
-    "to": "2017-07-21T05:48:02.627Z"
+    "from": "now-1y",
+    "to": "now"
   },
   "timepicker": {
     "refresh_intervals": [
@@ -2023,5 +2024,5 @@
   },
   "timezone": "",
   "title": "Leap:42.3",
-  "version": 24
+  "version": 26
 }
