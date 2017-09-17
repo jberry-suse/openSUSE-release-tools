@@ -113,7 +113,7 @@ def main(args):
     #first = True
     for request in requests:
         request_id = int(request.get('id'))
-        print(request.find('state').get('name'))
+        #print(request.find('state').get('name'))
         if request.find('state').get('name') != 'accepted':
             continue
         if request.find('action').get('type') != 'submit':
@@ -124,18 +124,21 @@ def main(args):
         final_at = date_parse(request.find('state').get('when'))
         
         open_for = (final_at - created_at).total_seconds()
-        print(final_at - created_at)
-        print(open_for)
-        #delta = datetime.utcnow() - created
-        #request.set('aged', str(delta.total_seconds() >= self.request_age_threshold))
-        #break
-        #print(request.reqid)
-        print(request.get('id'))
+        #print(final_at - created_at)
+        #print(open_for)
+        ##delta = datetime.utcnow() - created
+        ##request.set('aged', str(delta.total_seconds() >= self.request_age_threshold))
+        ##break
+        ##print(request.reqid)
+        #print(request.get('id'))
 
-        print(timestamp(final_at))
+        #print(timestamp(final_at))
         
         
         first_staged = date_parse(request.xpath('review[@by_group="factory-staging"]/history/@when')[0])
+        
+        staged_count = len(request.findall('review[@by_group="factory-staging"]/history'))
+        line('request', {'id': request_id}, {'total': open_for, 'staged_count': staged_count}, False, timestamp(final_at))
         
         # TODO If first entry might as well add a 0 entry
         
@@ -251,7 +254,7 @@ def main(args):
     client.drop_database('obs')
     client.create_database('obs')
     client.write_points(points, 's')
-    result = client.query('select backlog from total;')
+    result = client.query('select count(backlog) from total;')
     print("Result: {0}".format(result))
 
 
