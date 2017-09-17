@@ -1786,6 +1786,76 @@
       "showTitle": false,
       "title": "Dashboard Row",
       "titleSize": "h6"
+    },
+    {
+      "collapse": false,
+      "height": 250,
+      "panels": [
+        {
+          "aliasColors": {},
+          "cacheTimeout": null,
+          "combine": {
+            "label": "Others",
+            "threshold": 0
+          },
+          "datasource": null,
+          "fontSize": "80%",
+          "format": "short",
+          "id": 15,
+          "interval": null,
+          "legend": {
+            "percentage": true,
+            "show": true,
+            "values": true
+          },
+          "legendType": "Under graph",
+          "links": [],
+          "maxDataPoints": 3,
+          "nullPointMode": "connected",
+          "pieType": "pie",
+          "span": 12,
+          "strokeWidth": 1,
+          "targets": [
+            {
+              "alias": "$tag_user",
+              "dsType": "influxdb",
+              "groupBy": [
+                {
+                  "params": [
+                    "user"
+                  ],
+                  "type": "tag"
+                }
+              ],
+              "measurement": "user",
+              "orderByTime": "ASC",
+              "policy": "default",
+              "refId": "A",
+              "resultFormat": "time_series",
+              "select": [
+                [
+                  {
+                    "params": [
+                      "count"
+                    ],
+                    "type": "field"
+                  }
+                ]
+              ],
+              "tags": []
+            }
+          ],
+          "title": "Panel Title",
+          "type": "grafana-piechart-panel",
+          "valueName": "total"
+        }
+      ],
+      "repeat": null,
+      "repeatIteration": null,
+      "repeatRowId": null,
+      "showTitle": false,
+      "title": "Dashboard Row",
+      "titleSize": "h6"
     }
   ],
   "schemaVersion": 14,
@@ -1795,8 +1865,8 @@
     "list": []
   },
   "time": {
-    "from": "now-1y",
-    "to": "now"
+    "from": "2017-04-19T13:32:55.887Z",
+    "to": "2017-07-21T05:48:02.627Z"
   },
   "timepicker": {
     "refresh_intervals": [
@@ -1825,5 +1895,5 @@
   },
   "timezone": "",
   "title": "Leap:42.3",
-  "version": 22
+  "version": 23
 }
