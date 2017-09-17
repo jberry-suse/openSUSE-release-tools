@@ -1285,7 +1285,7 @@
       "panels": [
         {
           "aliasColors": {},
-          "bars": false,
+          "bars": true,
           "dashLength": 10,
           "dashes": false,
           "datasource": null,
@@ -1300,7 +1300,7 @@
             "total": false,
             "values": false
           },
-          "lines": true,
+          "lines": false,
           "linewidth": 1,
           "links": [],
           "nullPointMode": "null",
@@ -1311,7 +1311,7 @@
           "seriesOverrides": [],
           "spaceLength": 10,
           "span": 12,
-          "stack": false,
+          "stack": true,
           "steppedLine": false,
           "targets": [
             {
@@ -1320,7 +1320,7 @@
               "groupBy": [
                 {
                   "params": [
-                    "$__interval"
+                    "1d"
                   ],
                   "type": "time"
                 },
@@ -1332,7 +1332,7 @@
                 },
                 {
                   "params": [
-                    "linear"
+                    "0"
                   ],
                   "type": "fill"
                 }
@@ -1362,7 +1362,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Staged - User",
+          "title": "Staged - User (count)",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -2024,5 +2024,5 @@
   },
   "timezone": "",
   "title": "Leap:42.3",
-  "version": 26
+  "version": 27
 }
