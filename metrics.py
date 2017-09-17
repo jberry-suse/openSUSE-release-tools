@@ -62,7 +62,11 @@ def walk_lines(lines, target):
             #counters_tag = counters.setdefault(line.tags, {})
             #key = '{}::{}'.format(line.measurement, line.tags['target'])
             #counters_tag = counters.setdefault(key, {})
-            counters_tag = counters.setdefault(line.measurement, {})
+            if line.measurement == 'staging':
+                # TODO lol ugly
+                counters_tag = counters.setdefault(line.measurement + line.tags['id'], {})
+            else:
+                counters_tag = counters.setdefault(line.measurement, {})
             for key, value in line.fields.items():
                 #counter = counters_tag.setdefault(key, 0)
                 #print(key, counter, value)
@@ -162,10 +166,10 @@ def main(args):
         #line('total', {'request': request_id, 'event': 'select'}, {'backlog': -1}, True, timestamp(first_staged))
         
         line('total', {'request': request_id, 'event': 'create'}, {'backlog': 1, 'open': 1}, True, timestamp(created_at))
-        line('total', {'request': request_id, 'event': 'select'}, {'backlog': -1}, True, timestamp(first_staged))
+        #line('total', {'request': request_id, 'event': 'select'}, {'backlog': -1}, True, timestamp(first_staged))
         #line('total', {}, {'backlog': -1, 'staged': 1}, True, timestamp(first_staged))
         
-        line('total', {'request': request_id, 'event': 'close'}, {'open': -1}, True, timestamp(final_at))
+        line('total', {'request': request_id, 'event': 'close'}, {'backlog': -1, 'open': -1}, True, timestamp(final_at))
         
         # TODO review totals
         #for s in request.xpath('review/history/@when')
@@ -208,6 +212,7 @@ def main(args):
                 # TODO apparently a review can be in state="obsoleted" at which point
                 # can only tell who staged by looking at previous accepted factory-staging
                 # only 7 in all of Leap:42.3, but rather dumb
+                # TODO also want who unstaged? to show who removed
             staged_at = date_parse(review.get('when'))
             project_type = 'adi' if api.is_adi_project(review.get('by_project')) else 'letter'
             short = api.extract_staging_short(review.get('by_project'))
@@ -215,6 +220,9 @@ def main(args):
                  timestamp(staged_at))
             line('user', {'request': request_id, 'event': 'select', 'user': review.get('who'), 'number': number}, {'count': 1}, False,
                  timestamp(staged_at))
+
+            line('total', {'request': request_id, 'event': 'select'}, {'backlog': -1, 'staged': 1}, True, timestamp(staged_at))
+
             if history is not None:
                 #print(':{}'.format(history.get('when')))
                 unselected_at = date_parse(history.get('when'))
@@ -225,6 +233,8 @@ def main(args):
             # un-repaired state.
             line('staging', {'id': short, 'type': project_type, 'request': request_id, 'event': 'unselect'}, {'count': -1}, True, timestamp(unselected_at))
             number += 1
+            
+            line('total', {'request': request_id, 'event': 'unselect'}, {'backlog': 1, 'staged': -1}, True, timestamp(unselected_at))
         #ET.dump(request.to_xml())
         #for review in request.reviews:
             #print(review.to_str())
