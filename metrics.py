@@ -138,7 +138,13 @@ def main(args):
         first_staged = date_parse(request.xpath('review[@by_group="factory-staging"]/history/@when')[0])
         
         staged_count = len(request.findall('review[@by_group="factory-staging"]/history'))
-        line('request', {'id': request_id}, {'total': open_for, 'staged_count': staged_count}, False, timestamp(final_at))
+        line('request', {'id': request_id}, {'total': open_for,
+                                             'staged_count': staged_count,
+                                             'staged_first': (first_staged - created_at).total_seconds(),
+                                             }, False, timestamp(final_at))
+        # TODO likely want to break these stats out into different measurements
+        # so that the timestamp can be set for the particular stat
+        # for example staged_first as first_staged timestamp instead of final_at
         
         # TODO If first entry might as well add a 0 entry
         
