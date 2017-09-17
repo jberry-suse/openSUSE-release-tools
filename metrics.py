@@ -165,7 +165,7 @@ def main(args):
         line('total', {'request': request_id, 'event': 'select'}, {'backlog': -1}, True, timestamp(first_staged))
         #line('total', {}, {'backlog': -1, 'staged': 1}, True, timestamp(first_staged))
         
-        line('total', {'request': request_id, 'event': 'create'}, {'open': -1}, True, timestamp(final_at))
+        line('total', {'request': request_id, 'event': 'close'}, {'open': -1}, True, timestamp(final_at))
         
         # TODO review totals
         #for s in request.xpath('review/history/@when')
@@ -179,7 +179,7 @@ def main(args):
         #if i == 400:
             #break
         
-        continue
+        #continue
         
         #bucket_lines.append(InfluxLine('total', {}, {'backlog': 1}, True, timestamp(created_at)))
         #bucket_lines.append(InfluxLine('total', {}, {'backlog': -1}, True, timestamp(first_staged)))
@@ -196,16 +196,41 @@ def main(args):
         #root = request.to_xml()
         #ET.dump(root)
         root = request
-        for review in root.findall('review'):
+        #for review in root.xpath('review[@by_group="factory-staging" and @state="accepted"]'):
+        number = 1
+        for review in root.xpath('review[contains(@by_project, "{}:Staging:")]'.format(args.project)):
+        #for review in root.xpath('review/*[history]'):
             history = review.find('history') # removed when parsed by request
-            print(review.get('when'))
-            print(review.get('by_project'))
+            #print(review.get('when'))
+            #print(review.get('by_project'))
+            if not review.get('who'):
+                print(request_id)
+                # TODO apparently a review can be in state="obsoleted" at which point
+                # can only tell who staged by looking at previous accepted factory-staging
+                # only 7 in all of Leap:42.3, but rather dumb
+            staged_at = date_parse(review.get('when'))
+            project_type = 'adi' if api.is_adi_project(review.get('by_project')) else 'letter'
+            short = api.extract_staging_short(review.get('by_project'))
+            line('staging', {'id': short, 'type': project_type, 'request': request_id, 'event': 'select'}, {'count': 1}, True,
+                 timestamp(staged_at))
+            line('user', {'request': request_id, 'event': 'select', 'user': review.get('who'), 'number': number}, {'count': 1}, False,
+                 timestamp(staged_at))
             if history is not None:
-                print(':{}'.format(history.get('when')))
+                #print(':{}'.format(history.get('when')))
+                unselected_at = date_parse(history.get('when'))
+            else:
+                unselected_at = final_at
+            # assumption is that if declined and re-opened request would have been
+            # repaired (thus review closed, so only the last one could be in this
+            # un-repaired state.
+            line('staging', {'id': short, 'type': project_type, 'request': request_id, 'event': 'unselect'}, {'count': -1}, True, timestamp(unselected_at))
+            number += 1
         #ET.dump(request.to_xml())
         #for review in request.reviews:
             #print(review.to_str())
-        break
+        #break
+        #sys.exit()
+        continue
         
         # TODO request type not delete or submit
         print(request.state.to_str())
