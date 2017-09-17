@@ -16,9 +16,13 @@ from osclib.conf import Config
 from osclib.stagingapi import StagingAPI
 
 from lxml import etree as ET
+from influxdb import InfluxDBClient
 
 #CountChange = namedtuple('CountChange', ('timestamp', 'increase'))
 InfluxLine = namedtuple('InfluxLine', ('measurement', 'tags', 'fields', 'delta', 'timestamp'))
+#InfluxLine = namedtuple('InfluxLine', ('measurement', 'tags', 'fields', 'delta', 'time'))
+#InfluxLine.get = InfluxLine.getattr(InfluxLine, 'getattr')
+InfluxLine.get = lambda self, key, default=None: getattr(self, key)
 
 
 class Staging(object):
@@ -144,13 +148,26 @@ def main(args):
                  #True, timestamp(created_at) - 1)
             #first = False
         
-        line('total', {'request': request_id, 'event': 'create'}, {'backlog': 1}, True, timestamp(created_at))
+        #line('total', {'request': request_id, 'event': 'create'}, {'backlog': 1}, True, timestamp(created_at))
+        #line('total', {'request': request_id, 'event': 'select'}, {'backlog': -1}, True, timestamp(first_staged))
+        
+        line('total', {'request': request_id, 'event': 'create'}, {'backlog': 1, 'open': 1}, True, timestamp(created_at))
         line('total', {'request': request_id, 'event': 'select'}, {'backlog': -1}, True, timestamp(first_staged))
         #line('total', {}, {'backlog': -1, 'staged': 1}, True, timestamp(first_staged))
         
-        i += 1
-        if i == 400:
-            break
+        line('total', {'request': request_id, 'event': 'create'}, {'open': -1}, True, timestamp(final_at))
+        
+        # TODO review totals
+        #for s in request.xpath('review/history/@when')
+        
+        # assume declined/revoked (if no further staging actions) is when unstaged...with
+        # note about correcting using review history later
+        # do the review times get broken out separately or what
+        #break
+        
+        #i += 1
+        #if i == 400:
+            #break
         
         continue
         
@@ -220,6 +237,23 @@ def main(args):
 
     #walk_lines(bucket_lines, args.project)
     walk_lines(lines, args.project)
+    
+    points = []
+    for line2 in lines:
+        points.append({
+            'measurement': line2.measurement,
+            'tags': line2.tags,
+            'fields': line2.fields,
+            'time': line2.timestamp,
+            })
+
+    client = InfluxDBClient('localhost', 8086, 'root', 'root', 'obs')
+    client.drop_database('obs')
+    client.create_database('obs')
+    client.write_points(points, 's')
+    result = client.query('select backlog from total;')
+    print("Result: {0}".format(result))
+
 
 if __name__ == '__main__':
     description = '...'
