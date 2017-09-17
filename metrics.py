@@ -142,6 +142,7 @@ def main(args):
                                              'staged_count': staged_count,
                                              'staged_first': (first_staged - created_at).total_seconds(),
                                              }, False, timestamp(final_at))
+        line('request_staged_first', {'id': request_id}, {'value': (first_staged - created_at).total_seconds()}, False, timestamp(first_staged))
         # TODO likely want to break these stats out into different measurements
         # so that the timestamp can be set for the particular stat
         # for example staged_first as first_staged timestamp instead of final_at
