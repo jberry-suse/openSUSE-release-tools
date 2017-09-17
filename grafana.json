@@ -1813,7 +1813,7 @@
           "maxDataPoints": 3,
           "nullPointMode": "connected",
           "pieType": "pie",
-          "span": 12,
+          "span": 4,
           "strokeWidth": 1,
           "targets": [
             {
@@ -1845,7 +1845,135 @@
               "tags": []
             }
           ],
-          "title": "Panel Title",
+          "title": "Staged - User",
+          "type": "grafana-piechart-panel",
+          "valueName": "total"
+        },
+        {
+          "aliasColors": {},
+          "cacheTimeout": null,
+          "combine": {
+            "label": "Others",
+            "threshold": 0
+          },
+          "datasource": null,
+          "fontSize": "80%",
+          "format": "short",
+          "id": 16,
+          "interval": null,
+          "legend": {
+            "percentage": true,
+            "show": true,
+            "values": true
+          },
+          "legendType": "Under graph",
+          "links": [],
+          "maxDataPoints": 3,
+          "nullPointMode": "connected",
+          "pieType": "pie",
+          "span": 4,
+          "strokeWidth": 1,
+          "targets": [
+            {
+              "alias": "$tag_user",
+              "dsType": "influxdb",
+              "groupBy": [
+                {
+                  "params": [
+                    "user"
+                  ],
+                  "type": "tag"
+                }
+              ],
+              "measurement": "user",
+              "orderByTime": "ASC",
+              "policy": "default",
+              "refId": "A",
+              "resultFormat": "time_series",
+              "select": [
+                [
+                  {
+                    "params": [
+                      "count"
+                    ],
+                    "type": "field"
+                  }
+                ]
+              ],
+              "tags": [
+                {
+                  "key": "number",
+                  "operator": "=",
+                  "value": "1"
+                }
+              ]
+            }
+          ],
+          "title": "Staged - User (first only)",
+          "type": "grafana-piechart-panel",
+          "valueName": "total"
+        },
+        {
+          "aliasColors": {},
+          "cacheTimeout": null,
+          "combine": {
+            "label": "Others",
+            "threshold": 0
+          },
+          "datasource": null,
+          "fontSize": "80%",
+          "format": "short",
+          "id": 17,
+          "interval": null,
+          "legend": {
+            "percentage": true,
+            "show": true,
+            "values": true
+          },
+          "legendType": "Under graph",
+          "links": [],
+          "maxDataPoints": 3,
+          "nullPointMode": "connected",
+          "pieType": "pie",
+          "span": 4,
+          "strokeWidth": 1,
+          "targets": [
+            {
+              "alias": "$tag_user",
+              "dsType": "influxdb",
+              "groupBy": [
+                {
+                  "params": [
+                    "user"
+                  ],
+                  "type": "tag"
+                }
+              ],
+              "measurement": "user",
+              "orderByTime": "ASC",
+              "policy": "default",
+              "refId": "A",
+              "resultFormat": "time_series",
+              "select": [
+                [
+                  {
+                    "params": [
+                      "count"
+                    ],
+                    "type": "field"
+                  }
+                ]
+              ],
+              "tags": [
+                {
+                  "key": "number",
+                  "operator": "!=",
+                  "value": "1"
+                }
+              ]
+            }
+          ],
+          "title": "Staged - User (followup)",
           "type": "grafana-piechart-panel",
           "valueName": "total"
         }
@@ -1895,5 +2023,5 @@
   },
   "timezone": "",
   "title": "Leap:42.3",
-  "version": 23
+  "version": 24
 }
