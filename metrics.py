@@ -77,7 +77,7 @@ def walk_lines(lines, target):
             #print(counters)
 
         line.tags['target'] = target
-        print(line.timestamp, line.measurement, line.tags, line.fields)
+        #print(line.timestamp, line.measurement, line.tags, line.fields)
 
 #def start_entries(first_entry):
     #line('total', {}, {'backlog': 0, 'ignore': 0, 'open': 0, 'staged': 0},
@@ -256,6 +256,22 @@ def main(args):
     client.write_points(points, 's')
     result = client.query('select count(backlog) from total;')
     print("Result: {0}".format(result))
+    
+    leap_423_schedule = {
+        '2017-04-01': 'integration of SLE sources',
+        '2017-05-21': 'major version update freeze',
+        '2017-06-06': 'SLE RC: base system freeze',
+        '2017-06-25': 'package freeze',
+        '2017-07-26': 'final release',
+    }
+    points = []
+    for date, description in leap_423_schedule.items():
+        points.append({
+            'measurement': 'leap_423_schedule',
+            'fields': {'description': description},
+            'time': timestamp(datetime.strptime(date, '%Y-%m-%d')),
+            })
+    client.write_points(points, 's')
 
 
 if __name__ == '__main__':
