@@ -169,6 +169,8 @@ def main(args):
 
         #print(timestamp(final_at))
         
+        if len(request.xpath('review[@by_group="factory-staging"]/history/@when')) == 0:
+            continue
         
         first_staged = date_parse(request.xpath('review[@by_group="factory-staging"]/history/@when')[0])
         
