@@ -7,8 +7,8 @@
         "hide": false,
         "iconColor": "rgba(255, 96, 96, 1)",
         "limit": 100,
-        "name": "Leap 42.3 Release Schedule",
-        "query": "select description from leap_423_schedule where $timeFilter",
+        "name": "Release Schedule",
+        "query": "select description from release_schedule where $timeFilter",
         "showIn": 0,
         "type": "alert"
       }
@@ -2252,7 +2252,7 @@
     "list": [
       {
         "current": {
-          "tags": [],
+          "selected": true,
           "text": "openSUSE:Leap:42.3",
           "value": "openSUSE:Leap:42.3"
         },
@@ -2268,7 +2268,7 @@
     ]
   },
   "time": {
-    "from": "now-1y",
+    "from": "now-2y",
     "to": "now"
   },
   "timepicker": {
@@ -2298,5 +2298,5 @@
   },
   "timezone": "",
   "title": "openSUSE Staging Workflow",
-  "version": 36
+  "version": 39
 }

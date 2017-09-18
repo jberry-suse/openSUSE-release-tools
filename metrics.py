@@ -323,9 +323,10 @@ def main(args):
             'time': line2.timestamp,
             })
 
-    client = InfluxDBClient('localhost', 8086, 'root', 'root', 'obs')
-    client.drop_database('obs')
-    client.create_database('obs')
+    db = args.project
+    client = InfluxDBClient('localhost', 8086, 'root', 'root', db)
+    client.drop_database(db)
+    client.create_database(db)
     client.write_points(points, 's')
     result = client.query('select count(backlog) from total;')
     print("Result: {0}".format(result))
@@ -337,10 +338,27 @@ def main(args):
         '2017-06-25': 'package freeze',
         '2017-07-26': 'final release',
     }
+    leap_422_schedule = {
+        '2016-05-24': 'Alpha 1',
+        '2016-06-21': 'Alpha 2',
+        '2016-07-20': 'Alpha 3 - base system freeze',
+        '2016-08-31': 'Beta 1',
+        '2016-09-22': 'Beta 2 (delayed one day)',
+        '2016-10-05': 'Beta 3 - package freeze',
+        '2016-10-18': 'RC1',
+        '2016-11-02': 'RC2',
+        '2016-11-16': 'Release',
+    }
+    
+    if db.endswith('42.3'):
+        release_schedule = leap_423_schedule
+    else:
+        release_schedule = leap_422_schedule
+    
     points = []
-    for date, description in leap_423_schedule.items():
+    for date, description in release_schedule.items():
         points.append({
-            'measurement': 'leap_423_schedule',
+            'measurement': 'release_schedule',
             'fields': {'description': description},
             'time': timestamp(datetime.strptime(date, '%Y-%m-%d')),
             })
