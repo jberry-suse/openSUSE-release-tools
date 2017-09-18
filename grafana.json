@@ -2,7 +2,7 @@
   "annotations": {
     "list": [
       {
-        "datasource": "obs-influxdb",
+        "datasource": "$project",
         "enable": true,
         "hide": false,
         "iconColor": "rgba(255, 96, 96, 1)",
@@ -35,7 +35,7 @@
             "rgba(237, 129, 40, 0.89)",
             "rgba(50, 172, 45, 0.97)"
           ],
-          "datasource": null,
+          "datasource": "$project",
           "format": "none",
           "gauge": {
             "maxValue": 100,
@@ -135,7 +135,7 @@
             "rgba(237, 129, 40, 0.89)",
             "rgba(50, 172, 45, 0.97)"
           ],
-          "datasource": null,
+          "datasource": "$project",
           "format": "none",
           "gauge": {
             "maxValue": 100,
@@ -236,7 +236,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": "$project",
           "fill": 1,
           "id": 1,
           "interval": "1s",
@@ -405,7 +405,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": "$project",
           "fill": 4,
           "id": 4,
           "legend": {
@@ -529,7 +529,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": "$project",
           "fill": 1,
           "id": 5,
           "legend": {
@@ -659,7 +659,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": "$project",
           "fill": 1,
           "id": 8,
           "legend": {
@@ -815,7 +815,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": "$project",
           "fill": 1,
           "id": 9,
           "legend": {
@@ -971,7 +971,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": "$project",
           "fill": 1,
           "id": 6,
           "legend": {
@@ -1127,7 +1127,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": "$project",
           "fill": 1,
           "id": 18,
           "legend": {
@@ -1301,7 +1301,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": "$project",
           "fill": 1,
           "id": 10,
           "legend": {
@@ -1425,7 +1425,7 @@
           "bars": true,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": "$project",
           "fill": 1,
           "id": 11,
           "legend": {
@@ -1549,7 +1549,7 @@
           "bars": true,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": "$project",
           "fill": 1,
           "id": 13,
           "legend": {
@@ -1673,7 +1673,7 @@
           "bars": true,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": "$project",
           "fill": 1,
           "id": 14,
           "legend": {
@@ -1803,7 +1803,7 @@
           "bars": true,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": "$project",
           "fill": 1,
           "id": 12,
           "legend": {
@@ -1935,7 +1935,7 @@
             "label": "Others",
             "threshold": 0
           },
-          "datasource": null,
+          "datasource": "$project",
           "fontSize": "80%",
           "format": "short",
           "id": 15,
@@ -1994,7 +1994,7 @@
             "label": "Others",
             "threshold": 0
           },
-          "datasource": null,
+          "datasource": "$project",
           "fontSize": "80%",
           "format": "short",
           "id": 16,
@@ -2058,7 +2058,7 @@
             "label": "Others",
             "threshold": 0
           },
-          "datasource": null,
+          "datasource": "$project",
           "fontSize": "80%",
           "format": "short",
           "id": 17,
@@ -2132,7 +2132,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": "$project",
           "fill": 1,
           "id": 19,
           "legend": {
@@ -2249,7 +2249,23 @@
   "style": "dark",
   "tags": [],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "tags": [],
+          "text": "openSUSE:Leap:42.3",
+          "value": "openSUSE:Leap:42.3"
+        },
+        "hide": 0,
+        "label": null,
+        "name": "project",
+        "options": [],
+        "query": "influxdb",
+        "refresh": 1,
+        "regex": "/openSUSE:.*/",
+        "type": "datasource"
+      }
+    ]
   },
   "time": {
     "from": "now-1y",
@@ -2281,6 +2297,6 @@
     ]
   },
   "timezone": "",
-  "title": "Leap:42.3",
-  "version": 32
+  "title": "openSUSE Staging Workflow",
+  "version": 36
 }
