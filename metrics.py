@@ -18,6 +18,36 @@ from osclib.stagingapi import StagingAPI
 from lxml import etree as ET
 from influxdb import InfluxDBClient
 
+def get_request_list(*args, **kwargs):
+    global _requests
+
+    osc.core._search = osc.core.search
+    osc.core.search = search
+
+    osc.core.get_request_list(*args, **kwargs)
+
+    osc.core.search = osc.core._search
+
+    return _requests
+
+def search(apiurl, queries=None, **kwargs):
+    global _requests
+
+    requests = []
+    queries['request']['limit'] = 1000
+    queries['request']['offset'] = 0
+    while True:
+        collection = osc.core._search(apiurl, queries, **kwargs)['request']
+        requests.extend(collection.findall('request'))
+
+        if len(requests) == int(collection.get('matches')):
+            break
+
+        queries['request']['offset'] += queries['request']['limit']
+
+    _requests = requests
+    return {'request': ET.fromstring('<collection matches="0"></collection>')}
+
 #CountChange = namedtuple('CountChange', ('timestamp', 'increase'))
 InfluxLine = namedtuple('InfluxLine', ('measurement', 'tags', 'fields', 'delta', 'timestamp'))
 #InfluxLine = namedtuple('InfluxLine', ('measurement', 'tags', 'fields', 'delta', 'time'))
@@ -109,7 +139,8 @@ def main(args):
 
     i = 0
     #bucket_lines = []
-    requests = osc.core.get_request_list(apiurl, args.project,
+    #requests = osc.core.get_request_list(apiurl, args.project,
+    requests = get_request_list(apiurl, args.project,
                                          req_state=('accepted', 'revoked', 'superseded'),
                                          #req_type='submit', # TODO May make sense to query submit and delete seperately or alter the function to allow multiple to reduce massive result set
                                          exclude_target_projects=[args.project],
