@@ -348,13 +348,7 @@
                   }
                 ]
               ],
-              "tags": [
-                {
-                  "key": "target",
-                  "operator": "=",
-                  "value": "openSUSE:Leap:42.3"
-                }
-              ]
+              "tags": []
             }
           ],
           "thresholds": [],
@@ -2288,5 +2282,5 @@
   },
   "timezone": "",
   "title": "Leap:42.3",
-  "version": 29
+  "version": 32
 }
