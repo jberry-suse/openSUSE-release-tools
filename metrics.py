@@ -10,6 +10,7 @@ import sys
 
 import osc.conf
 import osc.core
+import osclib.conf
 
 from osclib.cache import Cache
 from osclib.conf import Config
@@ -17,6 +18,8 @@ from osclib.stagingapi import StagingAPI
 
 from lxml import etree as ET
 from influxdb import InfluxDBClient
+
+osclib.conf.DEFAULT[r'openSUSE:(?P<project>[\d.]+)'] = osclib.conf.DEFAULT[r'openSUSE:(?P<project>Leap:[\d.]+)']
 
 def get_request_list(*args, **kwargs):
     global _requests
