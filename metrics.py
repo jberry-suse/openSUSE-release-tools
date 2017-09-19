@@ -138,7 +138,8 @@ def main(args):
     Cache.CACHE_DIR = os.path.expanduser('~/.cache/osc-plugin-factory-metrics')
     Cache.PATTERNS['/request/\d+\?withfullhistory=1'] = sys.maxint #TODO only if final state
     #Cache.PATTERNS["/search/request.*target/@project='([^']+)'"] = Cache.TTL_LONG # TODO Urlencoded so no match
-    Cache.PATTERNS['/search/request'] = Cache.TTL_LONG
+    #Cache.PATTERNS['/search/request'] = Cache.TTL_LONG
+    Cache.PATTERNS['/search/request'] = sys.maxint
     Cache.init()
     #print(Cache.PATTERNS)
 
