@@ -154,6 +154,7 @@ def main(args):
                                          exclude_target_projects=[args.project],
                                          withfullhistory=True) # withfullhistory requires ...osc
     #first = True
+    print('processing {} requests'.format(len(requests)))
     for request in requests:
         request_id = int(request.get('id'))
         #print(request.find('state').get('name'))
@@ -178,6 +179,7 @@ def main(args):
         #print(timestamp(final_at))
         
         if len(request.xpath('review[@by_group="factory-staging"]/history/@when')) == 0:
+            print('skippy mcskipp: {}'.format(request_id))
             continue
         
         first_staged = date_parse(request.xpath('review[@by_group="factory-staging"]/history/@when')[0])
