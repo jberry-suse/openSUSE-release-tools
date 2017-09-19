@@ -24,9 +24,14 @@ def get_request_list(*args, **kwargs):
     osc.core._search = osc.core.search
     osc.core.search = search
 
+    osc.core._ET = osc.core.ET
+    osc.core.ET = ET
+
     osc.core.get_request_list(*args, **kwargs)
 
     osc.core.search = osc.core._search
+
+    osc.core.ET = osc.core._ET
 
     return _requests
 
