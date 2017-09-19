@@ -41,6 +41,10 @@ def get_request_list(*args, **kwargs):
 def search(apiurl, queries=None, **kwargs):
     global _requests
 
+    kwargs['request'] = xpath = osc.core.xpath_join(kwargs['request'], '@id>250000', op='and')
+    #kwargs['request'] = xpath = osc.core.xpath_join(kwargs['request'], '@id>400000', op='and')
+    #kwargs['request'] = xpath = osc.core.xpath_join(kwargs['request'], '@id>526000', op='and')
+
     requests = []
     queries['request']['limit'] = 1000
     queries['request']['offset'] = 0
@@ -48,7 +52,7 @@ def search(apiurl, queries=None, **kwargs):
         collection = osc.core._search(apiurl, queries, **kwargs)['request']
         requests.extend(collection.findall('request'))
 
-        if len(requests) == int(collection.get('matches')):
+        if len(requests) == int(collection.get('matches')): # or len(requests) > 50000:
             break
 
         queries['request']['offset'] += queries['request']['limit']
