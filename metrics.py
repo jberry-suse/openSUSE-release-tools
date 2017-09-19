@@ -509,6 +509,8 @@ def main(args):
         for date in tumbleweed_schedule:
             date = str(date)
             release_schedule['{}-{}-{}'.format(date[0:4], date[4:6], date[6:8])] = 'Snapshot: {}'.format(date)
+    else:
+        return
     
     points = []
     for date, description in release_schedule.items():
