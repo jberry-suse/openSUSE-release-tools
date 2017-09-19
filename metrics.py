@@ -41,7 +41,8 @@ def get_request_list(*args, **kwargs):
 def search(apiurl, queries=None, **kwargs):
     global _requests
 
-    kwargs['request'] = xpath = osc.core.xpath_join(kwargs['request'], '@id>250000', op='and')
+    if "submit/target/@project='openSUSE:Factory'" in kwargs['request']:
+        kwargs['request'] = xpath = osc.core.xpath_join(kwargs['request'], '@id>250000', op='and')
     #kwargs['request'] = xpath = osc.core.xpath_join(kwargs['request'], '@id>400000', op='and')
     #kwargs['request'] = xpath = osc.core.xpath_join(kwargs['request'], '@id>526000', op='and')
 
