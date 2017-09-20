@@ -3,7 +3,7 @@
     "list": [
       {
         "datasource": "$project",
-        "enable": true,
+        "enable": false,
         "hide": false,
         "iconColor": "rgba(255, 96, 96, 1)",
         "limit": 100,
@@ -302,7 +302,7 @@
                   },
                   {
                     "params": [],
-                    "type": "max"
+                    "type": "last"
                   },
                   {
                     "params": [
@@ -320,7 +320,7 @@
                   },
                   {
                     "params": [],
-                    "type": "max"
+                    "type": "last"
                   },
                   {
                     "params": [
@@ -338,7 +338,7 @@
                   },
                   {
                     "params": [],
-                    "type": "max"
+                    "type": "last"
                   },
                   {
                     "params": [
@@ -1235,7 +1235,7 @@
                   },
                   {
                     "params": [],
-                    "type": "max"
+                    "type": "last"
                   }
                 ]
               ],
@@ -2253,7 +2253,7 @@
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": null,
+          "datasource": "$project",
           "fill": 1,
           "id": 20,
           "legend": {
@@ -2376,6 +2376,7 @@
     "list": [
       {
         "current": {
+          "tags": [],
           "text": "openSUSE:Leap:42.3",
           "value": "openSUSE:Leap:42.3"
         },
@@ -2421,5 +2422,5 @@
   },
   "timezone": "",
   "title": "openSUSE Staging Workflow",
-  "version": 42
+  "version": 46
 }
