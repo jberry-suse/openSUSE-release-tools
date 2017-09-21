@@ -350,7 +350,17 @@ def main(args):
     walk_lines(lines, args.project)
     
     points = []
-    for line2 in lines:
+    i = 0
+    for line2 in sorted(lines, key=lambda l: l.timestamp):
+        if line2.measurement == 'total':
+            if i < 200:
+                print(line2)
+            i += 1
+            #if line2.fields['open'] != (line2.fields['backlog'] + line2.fields['staged']):
+                #print(line2)
+            #if min(line2.fields.values()) < 0:
+                #print(line2)
+
         points.append({
             'measurement': line2.measurement,
             'tags': line2.tags,
