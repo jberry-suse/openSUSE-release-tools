@@ -131,12 +131,21 @@ def main(args):
             continue
 
         first_staged = date_parse(request.xpath('review[@by_group="factory-staging"]/history/@when')[0])
+        ready_to_accept = request.xpath('review[contains(@by_project, "{}:Staging:adi:") and @state="accepted"]/history[comment[text() = "ready to accept"]]/@when'.format(args.project))
+        if len(ready_to_accept):
+            ready_to_accept = date_parse(ready_to_accept[0])
+            ready = (final_at - ready_to_accept).total_seconds()
+        else:
+            ready = None
 
         staged_count = len(request.findall('review[@by_group="factory-staging"]/history'))
-        line('request', {'id': request_id}, {'total': open_for,
-                                             'staged_count': staged_count,
-                                             'staged_first': (first_staged - created_at).total_seconds(),
-                                             }, False, timestamp(final_at))
+        request_fields = {'total': open_for,
+                          'staged_count': staged_count,
+                          'staged_first': (first_staged - created_at).total_seconds(),
+                          }
+        if ready:
+            request_fields['ready'] = ready
+        line('request', {'id': request_id}, request_fields, False, timestamp(final_at))
         line('request_staged_first', {'id': request_id}, {'value': (first_staged - created_at).total_seconds()}, False, timestamp(first_staged))
         # TODO likely want to break these stats out into different measurements
         # so that the timestamp can be set for the particular stat
