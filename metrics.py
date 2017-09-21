@@ -135,6 +135,12 @@ def main(args):
         if len(ready_to_accept):
             ready_to_accept = date_parse(ready_to_accept[0])
             ready = (final_at - ready_to_accept).total_seconds()
+
+            # TODO Either need to merge indentical timestamp lines or use separate measurements
+            #line('total', {'event': 'ready'}, {'ready': 1}, True, timestamp(ready_to_accept))
+            #line('total', {'event': 'ready'}, {'ready': -1}, True, timestamp(final_at))
+            line('ready', {}, {'count': 1}, True, timestamp(ready_to_accept))
+            line('ready', {}, {'count': -1}, True, timestamp(final_at))
         else:
             ready = None
 
@@ -155,6 +161,44 @@ def main(args):
 
         # TODO review totals
         #for s in request.xpath('review/history/@when')
+        for review in request.xpath('review[not(contains(@by_project, "{}:Staging:"))]'.format(args.project)):
+            tags = {'who': review.get('who')}
+            tags['state'] = review.get('state')
+
+            opened_at = date_parse(review.get('when'))
+            history = review.find('history')
+            if history is not None:
+                #tags['completed'] = True
+                #tags['state'] = review.get('state')
+                completed_at = date_parse(history.get('when'))
+            else:
+                #tags['completed'] = False
+                completed_at = final_at
+
+            for name, value in sorted(review.items()):
+                if name.startswith('by_'):
+                    tags[name] = value
+            line('review', tags, {'open_for': (completed_at - opened_at).total_seconds()}, False, timestamp(completed_at))
+
+            # TODO time spent in backlog (ie factory-staging)
+
+        for set_priority in request.xpath('history[description[contains(text(), "Request got a new priority:")]]'):
+            parts = set_priority.find('description').text.rsplit(' ', 3)
+            priority_previous = parts[1]
+            priority = parts[3]
+            #print(priority, set_priority.find('description').text)
+            #print(priority, priority_previous)
+            if priority == priority_previous:
+                continue
+            changed_at = date_parse(set_priority.get('when'))
+            if priority_previous != 'moderate':
+                line('priority', {'level': priority_previous}, {'count': -1}, True, timestamp(changed_at))
+            if priority != 'moderate':
+                line('priority', {'level': priority}, {'count': 1}, True, timestamp(changed_at))
+
+        priority = request.find('priority')
+        if priority is not None and priority.text != 'moderate':
+            line('priority', {'level': priority.text}, {'count': -1}, True, timestamp(final_at))
 
         root = request
         #for review in root.xpath('review[@by_group="factory-staging" and @state="accepted"]'):
