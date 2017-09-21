@@ -168,11 +168,15 @@ def main(args):
             continue
         if request.find('action').get('type') != 'submit':
             continue # never staged by factory-staging
-        
+
         #ET.dump(request.find('history'))
         created_at = date_parse(request.find('history').get('when'))
         final_at = date_parse(request.find('state').get('when'))
-        
+        final_at_history = date_parse(request.find('history[last()]').get('when'))
+        if final_at_history > final_at:
+            # Workaround for invalid dates: openSUSE/open-build-service#3858.
+            final_at = final_at_history
+
         open_for = (final_at - created_at).total_seconds()
         #print(final_at - created_at)
         #print(open_for)
