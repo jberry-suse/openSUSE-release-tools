@@ -141,8 +141,8 @@ def main(args):
         # TODO likely want to break these stats out into different measurements
         # so that the timestamp can be set for the particular stat
         # for example staged_first as first_staged timestamp instead of final_at
-        line('total', {'request': request_id, 'event': 'create'}, {'backlog': 1, 'open': 1}, True, timestamp(created_at))
-        line('total', {'request': request_id, 'event': 'close'}, {'backlog': -1, 'open': -1}, True, timestamp(final_at))
+        line('total', {'event': 'create'}, {'backlog': 1, 'open': 1}, True, timestamp(created_at))
+        line('total', {'event': 'close'}, {'backlog': -1, 'open': -1}, True, timestamp(final_at))
 
         # TODO review totals
         #for s in request.xpath('review/history/@when')
@@ -166,12 +166,12 @@ def main(args):
 
             project_type = 'adi' if api.is_adi_project(review.get('by_project')) else 'letter'
             short = api.extract_staging_short(review.get('by_project'))
-            line('staging', {'id': short, 'type': project_type, 'request': request_id, 'event': 'select'}, {'count': 1}, True,
+            line('staging', {'id': short, 'type': project_type, 'event': 'select'}, {'count': 1}, True,
                  timestamp(staged_at))
-            line('user', {'request': request_id, 'event': 'select', 'user': review.get('who'), 'number': number}, {'count': 1}, False,
+            line('user', {'event': 'select', 'user': review.get('who'), 'number': number}, {'count': 1}, False,
                  timestamp(staged_at))
 
-            line('total', {'request': request_id, 'event': 'select'}, {'backlog': -1, 'staged': 1}, True, timestamp(staged_at))
+            line('total', {'event': 'select'}, {'backlog': -1, 'staged': 1}, True, timestamp(staged_at))
 
             if history is not None:
                 #print(':{}'.format(history.get('when')))
@@ -184,7 +184,7 @@ def main(args):
             line('staging', {'id': short, 'type': project_type, 'request': request_id, 'event': 'unselect'}, {'count': -1}, True, timestamp(unselected_at))
             number += 1
 
-            line('total', {'request': request_id, 'event': 'unselect'}, {'backlog': 1, 'staged': -1}, True, timestamp(unselected_at))
+            line('total', {'event': 'unselect'}, {'backlog': 1, 'staged': -1}, True, timestamp(unselected_at))
 
     # Create starter line so all values are inherited.
     line('total', {}, {'backlog': 0, 'ignore': 0, 'open': 0, 'staged': 0},
