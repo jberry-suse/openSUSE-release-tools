@@ -4,7 +4,6 @@ import argparse
 from collections import namedtuple
 from datetime import datetime
 from dateutil.parser import parse as date_parse
-#dateutil.parser.parse
 import os
 import sys
 
@@ -43,8 +42,6 @@ def search(apiurl, queries=None, **kwargs):
 
     if "submit/target/@project='openSUSE:Factory'" in kwargs['request']:
         kwargs['request'] = xpath = osc.core.xpath_join(kwargs['request'], '@id>250000', op='and')
-    #kwargs['request'] = xpath = osc.core.xpath_join(kwargs['request'], '@id>400000', op='and')
-    #kwargs['request'] = xpath = osc.core.xpath_join(kwargs['request'], '@id>526000', op='and')
 
     requests = []
     queries['request']['limit'] = 1000
@@ -61,26 +58,8 @@ def search(apiurl, queries=None, **kwargs):
     _requests = requests
     return {'request': ET.fromstring('<collection matches="0"></collection>')}
 
-#CountChange = namedtuple('CountChange', ('timestamp', 'increase'))
 InfluxLine = namedtuple('InfluxLine', ('measurement', 'tags', 'fields', 'delta', 'timestamp'))
-#InfluxLine = namedtuple('InfluxLine', ('measurement', 'tags', 'fields', 'delta', 'time'))
-#InfluxLine.get = InfluxLine.getattr(InfluxLine, 'getattr')
-InfluxLine.get = lambda self, key, default=None: getattr(self, key)
 
-
-class Staging(object):
-    def __init__(self, letter):
-        self.letter = letter
-        self.start = None
-        self.requests = []
-
-    def add(self, request):
-        if len(self.requests) == 0:
-            self.start = request.statehistory[0].when
-        self.requests.append(int(request.reqid))
-
-    def remove(self, request):
-        self.requests.remove(int(request.reqid))
 
 lines = []
 timestamp_earliest = sys.maxint
@@ -98,37 +77,16 @@ def timestamp(datetime):
 
 def walk_lines(lines, target):
     counters = {}
-    #lines = sorted(lines, key=lambda l: l.timestamp)
     for line in sorted(lines, key=lambda l: l.timestamp):
-        #print(line.timestamp)
         if line.delta:
-            #counters_tag = counters.setdefault(line.tags, {})
-            #key = '{}::{}'.format(line.measurement, line.tags['target'])
-            #counters_tag = counters.setdefault(key, {})
             if line.measurement == 'staging':
                 # TODO lol ugly
                 counters_tag = counters.setdefault(line.measurement + line.tags['id'], {})
             else:
                 counters_tag = counters.setdefault(line.measurement, {})
             for key, value in line.fields.items():
-                #counter = counters_tag.setdefault(key, 0)
-                #print(key, counter, value)
-                #counter += value
-                #counters_tag[key] = counter
-                #line.fields[key] = counter
-                #line.fields[key] = counters_tag[key] = counters_tag.setdefault(key, 0) + value
                 counters_tag[key] = counters_tag.setdefault(key, 0) + value
-                #line.fields[key] = counters_tag[key]
             line.fields.update(counters_tag)
-
-            #print(counters)
-
-        #line.tags['target'] = target
-        #print(line.timestamp, line.measurement, line.tags, line.fields)
-
-#def start_entries(first_entry):
-    #line('total', {}, {'backlog': 0, 'ignore': 0, 'open': 0, 'staged': 0},
-                 ##True, timestamp(created_at) - 1)
 
 def main(args):
     osc.conf.get_config(override_apiurl=args.apiurl)
@@ -141,35 +99,24 @@ def main(args):
     #Cache.PATTERNS['/search/request'] = Cache.TTL_LONG
     Cache.PATTERNS['/search/request'] = sys.maxint
     Cache.init()
-    #print(Cache.PATTERNS)
 
     # TODO This type of logic is also used in ReviewBot now
     Config(args.project)
     api = StagingAPI(apiurl, args.project)
-    stagings = {}
-    for letter in api.get_staging_projects_short():
-        stagings[letter] = Staging(letter)
-    #print(stagings)
 
     i = 0
-    #bucket_lines = []
-    #requests = osc.core.get_request_list(apiurl, args.project,
     requests = get_request_list(apiurl, args.project,
                                          req_state=('accepted', 'revoked', 'superseded'),
-                                         #req_type='submit', # TODO May make sense to query submit and delete seperately or alter the function to allow multiple to reduce massive result set
                                          exclude_target_projects=[args.project],
-                                         withfullhistory=True) # withfullhistory requires ...osc
-    #first = True
+                                         withfullhistory=True)
     print('processing {} requests'.format(len(requests)))
     for request in requests:
         request_id = int(request.get('id'))
-        #print(request.find('state').get('name'))
         if request.find('state').get('name') != 'accepted':
             continue
         if request.find('action').get('type') != 'submit':
             continue # never staged by factory-staging
 
-        #ET.dump(request.find('history'))
         created_at = date_parse(request.find('history').get('when'))
         final_at = date_parse(request.find('state').get('when'))
         final_at_history = date_parse(request.find('history[last()]').get('when'))
@@ -178,22 +125,13 @@ def main(args):
             final_at = final_at_history
 
         open_for = (final_at - created_at).total_seconds()
-        #print(final_at - created_at)
-        #print(open_for)
-        ##delta = datetime.utcnow() - created
-        ##request.set('aged', str(delta.total_seconds() >= self.request_age_threshold))
-        ##break
-        ##print(request.reqid)
-        #print(request.get('id'))
 
-        #print(timestamp(final_at))
-        
         if len(request.xpath('review[@by_group="factory-staging"]/history/@when')) == 0:
             print('skippy mcskipp: {}'.format(request_id))
             continue
-        
+
         first_staged = date_parse(request.xpath('review[@by_group="factory-staging"]/history/@when')[0])
-        
+
         staged_count = len(request.findall('review[@by_group="factory-staging"]/history'))
         line('request', {'id': request_id}, {'total': open_for,
                                              'staged_count': staged_count,
@@ -203,55 +141,12 @@ def main(args):
         # TODO likely want to break these stats out into different measurements
         # so that the timestamp can be set for the particular stat
         # for example staged_first as first_staged timestamp instead of final_at
-        
-        # TODO If first entry might as well add a 0 entry
-        
-        #total,target=openSUSE:Factory backlog=10,ignore=7,open=1337
-#staging,target=openSUSE:Factory,id=A state=building,count=7
-#request,target=openSUSE:Factory,source=server:php:applications,id=1234,state=accepted backlog=1234,time_to_first=2334,moved=1234 1239019535 (of accept)
-        #if first:
-            #print('FIRST!!!!!!')
-            #line('total', {}, {'backlog': 0, 'ignore': 0, 'open': 0, 'staged': 0},
-                 #True, timestamp(created_at) - 1)
-            #first = False
-        
-        #line('total', {'request': request_id, 'event': 'create'}, {'backlog': 1}, True, timestamp(created_at))
-        #line('total', {'request': request_id, 'event': 'select'}, {'backlog': -1}, True, timestamp(first_staged))
-        
         line('total', {'request': request_id, 'event': 'create'}, {'backlog': 1, 'open': 1}, True, timestamp(created_at))
-        #line('total', {'request': request_id, 'event': 'select'}, {'backlog': -1}, True, timestamp(first_staged))
-        #line('total', {}, {'backlog': -1, 'staged': 1}, True, timestamp(first_staged))
-        
         line('total', {'request': request_id, 'event': 'close'}, {'backlog': -1, 'open': -1}, True, timestamp(final_at))
-        
+
         # TODO review totals
         #for s in request.xpath('review/history/@when')
-        
-        # assume declined/revoked (if no further staging actions) is when unstaged...with
-        # note about correcting using review history later
-        # do the review times get broken out separately or what
-        #break
-        
-        #i += 1
-        #if i == 400:
-            #break
-        
-        #continue
-        
-        #bucket_lines.append(InfluxLine('total', {}, {'backlog': 1}, True, timestamp(created_at)))
-        #bucket_lines.append(InfluxLine('total', {}, {'backlog': -1}, True, timestamp(first_staged)))
-        
-        #bucket_lines.append(InfluxLine('bucket',
-                                       #{'target': args.project, 'id': 'backlog'},
-                                       #{'count': 1}, True, timestamp(created_at)))
-        #bucket_lines.append(InfluxLine('bucket',
-                                       #{'target': args.project, 'id': 'backlog'},
-                                       #{'count': -1}, True, timestamp(first_staged)))
 
-        #print(bucket_lines)
-
-        #root = request.to_xml()
-        #ET.dump(root)
         root = request
         #for review in root.xpath('review[@by_group="factory-staging" and @state="accepted"]'):
         number = 1
@@ -268,17 +163,6 @@ def main(args):
                 # only 7 in all of Leap:42.3, but rather dumb
                 # TODO also want who unstaged? to show who removed
             staged_at = date_parse(review.get('when'))
-
-            #by_project = review.get('by_project')
-            #history_elements = root.xpath('history[comment[text()="Picked {}"]]'.format(by_project))
-            #if len(history_elements) > 1:
-                ##print('confused', request_id, by_project)
-                #pass
-            #elif len(history_elements):
-                #staged_at_history = date_parse(history_elements[0].get('when'))
-                #if staged_at_history > staged_at:
-                    #staged_at = staged_at_history
-                    #print('swapped')
 
             project_type = 'adi' if api.is_adi_project(review.get('by_project')) else 'letter'
             short = api.extract_staging_short(review.get('by_project'))
@@ -299,63 +183,22 @@ def main(args):
             # un-repaired state.
             line('staging', {'id': short, 'type': project_type, 'request': request_id, 'event': 'unselect'}, {'count': -1}, True, timestamp(unselected_at))
             number += 1
-            
+
             line('total', {'request': request_id, 'event': 'unselect'}, {'backlog': 1, 'staged': -1}, True, timestamp(unselected_at))
-        #ET.dump(request.to_xml())
-        #for review in request.reviews:
-            #print(review.to_str())
-        #break
-        #sys.exit()
-        continue
-        
-        # TODO request type not delete or submit
-        print(request.state.to_str())
-        print(request.state.name)
-        if request.state.name != 'accepted':
-            continue
-        #break
-        #print(request)
-        #print(dir(request))
-        #print(ET.dump(request.to_xml()))
 
-        #request = osc.core.get_request(apiurl, request.reqid)
-        print(request)
-        
-        for review in request.reviews:
-            print(review.to_str())
-        #print(request.statehistory[0].when)
-        for statehistory in request.statehistory:
-            print(statehistory.name)
-            print(statehistory.who)
-            print(statehistory.when)
-            print(statehistory.description)
-            print(statehistory.comment)
-            print(statehistory.to_str())
-            #print(statehistory.)
-            print('=====')
-        break
-        i += 1
-        if i == 4:
-            break
-
-    #request = osc.core.get_request(apiurl, str(461992))
-    #print(request)
-    
-    
     # Create starter line so all values are inherited.
     line('total', {}, {'backlog': 0, 'ignore': 0, 'open': 0, 'staged': 0},
                 True, timestamp_earliest - 1)
 
-    #walk_lines(bucket_lines, args.project)
     walk_lines(lines, args.project)
-    
+
     points = []
     i = 0
     for line2 in sorted(lines, key=lambda l: l.timestamp):
-        if line2.measurement == 'total':
-            if i < 200:
-                print(line2)
-            i += 1
+        #if line2.measurement == 'total':
+            #if i < 200:
+                #print(line2)
+            #i += 1
             #if line2.fields['open'] != (line2.fields['backlog'] + line2.fields['staged']):
                 #print(line2)
             #if min(line2.fields.values()) < 0:
