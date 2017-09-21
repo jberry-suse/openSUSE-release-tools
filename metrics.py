@@ -260,6 +260,7 @@ def main(args):
             history = review.find('history') # removed when parsed by request
             #print(review.get('when'))
             #print(review.get('by_project'))
+
             if not review.get('who'):
                 print(request_id)
                 # TODO apparently a review can be in state="obsoleted" at which point
@@ -267,6 +268,18 @@ def main(args):
                 # only 7 in all of Leap:42.3, but rather dumb
                 # TODO also want who unstaged? to show who removed
             staged_at = date_parse(review.get('when'))
+
+            #by_project = review.get('by_project')
+            #history_elements = root.xpath('history[comment[text()="Picked {}"]]'.format(by_project))
+            #if len(history_elements) > 1:
+                ##print('confused', request_id, by_project)
+                #pass
+            #elif len(history_elements):
+                #staged_at_history = date_parse(history_elements[0].get('when'))
+                #if staged_at_history > staged_at:
+                    #staged_at = staged_at_history
+                    #print('swapped')
+
             project_type = 'adi' if api.is_adi_project(review.get('by_project')) else 'letter'
             short = api.extract_staging_short(review.get('by_project'))
             line('staging', {'id': short, 'type': project_type, 'request': request_id, 'event': 'select'}, {'count': 1}, True,
