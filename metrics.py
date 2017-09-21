@@ -368,7 +368,7 @@ def main(args):
             'time': line2.timestamp,
             })
 
-    db = args.project
+    db = args.project + 'v2'
     client = InfluxDBClient('localhost', 8086, 'root', 'root', db)
     client.drop_database(db)
     client.create_database(db)
@@ -538,6 +538,7 @@ def main(args):
         20170913,
     ]
     
+    db = db[:-2]
     if db.endswith('42.3'):
         release_schedule = leap_423_schedule
     elif db.endswith('42.2'):
