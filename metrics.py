@@ -115,6 +115,8 @@ def main(args):
                                          exclude_target_projects=[args.project],
                                          withfullhistory=True)
     print('processing {} requests'.format(len(requests)))
+    swap_staged_user = 0
+    swap_staged_user_miss = 0
     for request in requests:
         request_id = int(request.get('id'))
         if request.find('state').get('name') != 'accepted':
@@ -171,6 +173,7 @@ def main(args):
                 if splitter_whitelist:
                     short = api.extract_staging_short(by_project)
                     request_tags['whitelisted'] = short in splitter_whitelist
+                    #print(by_project, short, request_tags['whitelisted'])
             else:
                 # All letter where whitelisted since no restriction.
                 request_tags['whitelisted'] = request_tags['type'] == 'letter'
@@ -188,7 +191,7 @@ def main(args):
         #for s in request.xpath('review/history/@when')
         for review in request.xpath('review[not(contains(@by_project, "{}:Staging:"))]'.format(args.project)):
             tags = {
-                'who_added': review.get('who'),
+                #'who_added': review.get('who'),
                 'state': review.get('state'),
             }
 
@@ -278,8 +281,31 @@ def main(args):
             short = api.extract_staging_short(review.get('by_project'))
             line('staging', {'id': short, 'type': project_type, 'event': 'select'}, {'count': 1}, True,
                  timestamp(staged_at))
-            __tags = {'event': 'select', 'user': review.get('who'), 'number': number}
+
+            realdeal = request.xpath('history[@when="{}" and comment[contains(text(), "{}")]]/@who'.format(
+                review.get('when'), review.get('by_project')))
+            who = review.get('who')
+            if len(realdeal):
+                #print(who, realdeal[0])
+                who = realdeal[0]
+                swap_staged_user += 1
+            else:
+                __when = review.get('when')[:-2]
+                #__when[] += int(__when[-2:]) + 1
+                #print(review.get('when'), __when)
+                realdeal = request.xpath('history[contains(@when, "{}") and comment[contains(text(), "{}")]]/@who'.format(
+                __when, review.get('by_project')))
+                if len(realdeal):
+                    #print(who, realdeal[0])
+                    who = realdeal[0]
+                    swap_staged_user += 1
+                else:
+                    swap_staged_user_miss += 1
+            #__tags = {'event': 'select', 'user': review.get('who'), 'number': number}
+            __tags = {'event': 'select', 'user': who, 'number': number}
             __tags.update(request_tags)
+            #if __tags['user'] == 'staging-bot' and __tags['whitelisted'] == True:
+                #print(__tags)
             line('user', __tags, {'count': 1}, False,
                  timestamp(staged_at))
 
@@ -297,6 +323,9 @@ def main(args):
             number += 1
 
             line('total', {'event': 'unselect'}, {'backlog': 1, 'staged': -1}, True, timestamp(unselected_at))
+
+    print('swap_staged_user', swap_staged_user)
+    print('swap_staged_user_miss', swap_staged_user_miss)
 
     # Create starter line so all values are inherited.
     line('total', {}, {'backlog': 0, 'ignore': 0, 'open': 0, 'staged': 0},
