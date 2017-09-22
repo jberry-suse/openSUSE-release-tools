@@ -3,7 +3,7 @@
     "list": [
       {
         "datasource": "$project",
-        "enable": false,
+        "enable": true,
         "hide": false,
         "iconColor": "rgba(255, 96, 96, 1)",
         "limit": 100,
@@ -3857,8 +3857,6 @@
     "list": [
       {
         "current": {
-          "selected": true,
-          "tags": [],
           "text": "openSUSE:Leap:42.3v2",
           "value": "openSUSE:Leap:42.3v2"
         },
@@ -3904,5 +3902,5 @@
   },
   "timezone": "",
   "title": "openSUSE Staging Workflow v2",
-  "version": 14
+  "version": 16
 }

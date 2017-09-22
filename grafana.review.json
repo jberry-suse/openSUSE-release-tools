@@ -883,7 +883,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "alias": "$col",
+              "alias": "$tag_by_user.$col",
               "dsType": "influxdb",
               "groupBy": [
                 {
@@ -891,6 +891,12 @@
                     "$__interval"
                   ],
                   "type": "time"
+                },
+                {
+                  "params": [
+                    "by_user"
+                  ],
+                  "type": "tag"
                 },
                 {
                   "params": [
@@ -973,6 +979,12 @@
                   "key": "by_user",
                   "operator": "=",
                   "value": "repo-checker"
+                },
+                {
+                  "condition": "OR",
+                  "key": "by_user",
+                  "operator": "=",
+                  "value": "factory-repo-checker"
                 }
               ]
             }
@@ -980,7 +992,7 @@
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Review - repo-checker",
+          "title": "Review - [factory-]repo-checker",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -1993,6 +2005,7 @@
     "list": [
       {
         "current": {
+          "tags": [],
           "text": "openSUSE:Leap:42.3v2",
           "value": "openSUSE:Leap:42.3v2"
         },
@@ -2038,5 +2051,5 @@
   },
   "timezone": "",
   "title": "openSUSE Staging Reviews",
-  "version": 10
+  "version": 11
 }
