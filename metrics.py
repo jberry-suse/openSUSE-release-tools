@@ -82,6 +82,11 @@ def walk_lines(lines, target):
             if line.measurement == 'staging':
                 # TODO lol ugly
                 counters_tag = counters.setdefault(line.measurement + line.tags['id'], {})
+            elif line.measurement == 'review_count':
+                counters_tag = counters.setdefault(line.measurement + '_'.join(line.tags['key']), {})
+                #del line.tags['key']
+            elif line.measurement == 'priority':
+                counters_tag = counters.setdefault(line.measurement + line.tags['level'], {})
             else:
                 counters_tag = counters.setdefault(line.measurement, {})
             for key, value in line.fields.items():
@@ -162,8 +167,10 @@ def main(args):
         # TODO review totals
         #for s in request.xpath('review/history/@when')
         for review in request.xpath('review[not(contains(@by_project, "{}:Staging:"))]'.format(args.project)):
-            tags = {'who': review.get('who')}
-            tags['state'] = review.get('state')
+            tags = {
+                'who_added': review.get('who'),
+                'state': review.get('state'),
+            }
 
             opened_at = date_parse(review.get('when'))
             history = review.find('history')
@@ -171,15 +178,37 @@ def main(args):
                 #tags['completed'] = True
                 #tags['state'] = review.get('state')
                 completed_at = date_parse(history.get('when'))
+                tags['who_completed'] = history.get('who')
             else:
                 #tags['completed'] = False
                 completed_at = final_at
 
+            #count = 0
+            tags['key'] = []
             for name, value in sorted(review.items()):
                 if name.startswith('by_'):
                     tags[name] = value
+                    #count += 1
+                    tags['key'].append(value)
+            #if count > 1:
+            if 'by_project' in tags:
+                if 'by_package' in tags:
+                    tags['type'] = 'devel_package'
+                else:
+                    tags['type'] = 'devel'
+            else:
+                tags['type'] = 'group' if 'by_group' in tags else 'user'
+
             line('review', tags, {'open_for': (completed_at - opened_at).total_seconds()}, False, timestamp(completed_at))
 
+            #if completed_at < opened_at:
+                #print(completed_at)
+            #print(completed_at)
+            if tags['type'] == 'user' and tags['by_user'] == 'repo-checker':
+                print(request_id)
+
+            line('review_count', tags, {'count':  1}, True, timestamp(opened_at))
+            line('review_count', tags, {'count': -1}, True, timestamp(completed_at))
             # TODO time spent in backlog (ie factory-staging)
 
         for set_priority in request.xpath('history[description[contains(text(), "Request got a new priority:")]]'):
