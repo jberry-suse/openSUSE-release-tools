@@ -156,8 +156,28 @@ def main(args):
                           }
         if ready:
             request_fields['ready'] = ready
-        line('request', {'id': request_id}, request_fields, False, timestamp(final_at))
-        line('request_staged_first', {'id': request_id}, {'value': (first_staged - created_at).total_seconds()}, False, timestamp(first_staged))
+
+        request_tags = {}
+
+        first_staged_review = request.xpath('review[contains(@by_project, "{}:Staging:")]'.format(args.project))
+        if len(first_staged_review):
+            by_project = first_staged_review[0].get('by_project')
+            request_tags['type'] = 'adi' if api.is_adi_project(by_project) else 'letter'
+
+            # TODO track through revisions
+            #splitter_whitelist = osc.conf.config.get('splitter-whitelist')
+            if args.project.startswith('openSUSE:Factory'):
+                splitter_whitelist = 'B C D E F G H I J'.split()
+                if splitter_whitelist:
+                    short = api.extract_staging_short(by_project)
+                    request_tags['whitelisted'] = short in splitter_whitelist
+            else:
+                # All letter where whitelisted since no restriction.
+                request_tags['whitelisted'] = request_tags['type'] == 'letter'
+            #print(request_tags)
+
+        line('request', request_tags, request_fields, False, timestamp(final_at))
+        line('request_staged_first', request_tags, {'value': (first_staged - created_at).total_seconds()}, False, timestamp(first_staged))
         # TODO likely want to break these stats out into different measurements
         # so that the timestamp can be set for the particular stat
         # for example staged_first as first_staged timestamp instead of final_at
@@ -245,18 +265,22 @@ def main(args):
             #print(review.get('by_project'))
 
             if not review.get('who'):
-                print(request_id)
+                #print(request_id)
                 # TODO apparently a review can be in state="obsoleted" at which point
                 # can only tell who staged by looking at previous accepted factory-staging
                 # only 7 in all of Leap:42.3, but rather dumb
                 # TODO also want who unstaged? to show who removed
+                pass
+
             staged_at = date_parse(review.get('when'))
 
             project_type = 'adi' if api.is_adi_project(review.get('by_project')) else 'letter'
             short = api.extract_staging_short(review.get('by_project'))
             line('staging', {'id': short, 'type': project_type, 'event': 'select'}, {'count': 1}, True,
                  timestamp(staged_at))
-            line('user', {'event': 'select', 'user': review.get('who'), 'number': number}, {'count': 1}, False,
+            __tags = {'event': 'select', 'user': review.get('who'), 'number': number}
+            __tags.update(request_tags)
+            line('user', __tags, {'count': 1}, False,
                  timestamp(staged_at))
 
             line('total', {'event': 'select'}, {'backlog': -1, 'staged': 1}, True, timestamp(staged_at))
