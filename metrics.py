@@ -209,8 +209,10 @@ def main(args):
 
             line('review_count', tags, {'count':  1}, True, timestamp(opened_at))
             line('review_count', tags, {'count': -1}, True, timestamp(completed_at))
+
             # TODO time spent in backlog (ie factory-staging)
 
+        found = []
         for set_priority in request.xpath('history[description[contains(text(), "Request got a new priority:")]]'):
             parts = set_priority.find('description').text.rsplit(' ', 3)
             priority_previous = parts[1]
@@ -224,10 +226,14 @@ def main(args):
                 line('priority', {'level': priority_previous}, {'count': -1}, True, timestamp(changed_at))
             if priority != 'moderate':
                 line('priority', {'level': priority}, {'count': 1}, True, timestamp(changed_at))
+                found.append(priority)
 
         priority = request.find('priority')
         if priority is not None and priority.text != 'moderate':
-            line('priority', {'level': priority.text}, {'count': -1}, True, timestamp(final_at))
+            if priority.text in found:
+                line('priority', {'level': priority.text}, {'count': -1}, True, timestamp(final_at))
+            else:
+                print(request_id, priority.text)
 
         root = request
         #for review in root.xpath('review[@by_group="factory-staging" and @state="accepted"]'):
