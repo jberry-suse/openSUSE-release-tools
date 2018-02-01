@@ -418,8 +418,8 @@ def do_staging(self, subcmd, opts, *args):
         api = StagingAPI(opts.apiurl, opts.project)
         config.apply_remote(api)
 
-        from osclib.core import project_list_family
-        from osclib.core import project_list_family_sorter
+        from osclib.util import project_list_family
+        from osclib.util import project_list_family_sorter
         projects = project_list_family(api.apiurl, api.project)
         s = sorted(projects, key=project_list_family_sorter, reverse=True)
         print(projects)
