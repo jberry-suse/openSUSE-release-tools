@@ -726,6 +726,7 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
             for arch in self.tool.architectures:
                 # TODO: refactor to common function with repo_checker.py
                 d = os.path.join(CACHEDIR, project, repo, arch)
+                print(d)
                 if not os.path.exists(d):
                     os.makedirs(d)
 
@@ -734,6 +735,7 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
                 args.append('--nodebug')
                 args.append('{}/public/build/{}/{}/{}'.format(self.tool.apiurl, project, repo, arch))
                 args.append(d)
+                print(args)
                 p = subprocess.Popen(args, stdout=subprocess.PIPE)
                 repo_update = False
                 for line in p.stdout:
@@ -747,6 +749,7 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
                 files = [os.path.join(d, f)
                          for f in os.listdir(d) if f.endswith('.rpm')]
                 fh = open(solv_file, 'w')
+                print(solv_file)
                 p = subprocess.Popen(
                     ['rpms2solv', '-m', '-', '-0'], stdin=subprocess.PIPE, stdout=fh)
                 p.communicate('\0'.join(files))
@@ -765,8 +768,8 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
         target_config = conf.config[target_project]
 
         project_nonfree = target_config.get('nonfree')
-        if not project_nonfree:
-            raise cmdln.CmdlnUserError('project does not have a nonfree project to merge')
+        #if not project_nonfree:
+            #raise cmdln.CmdlnUserError('project does not have a nonfree project to merge')
 
         for prp in self.tool.repos:
             project, repo = prp.split('/')
@@ -774,11 +777,15 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
                 #cache_dir = os.path.join(CACHEDIR, target_project, repo, arch)
                 solv_file = os.path.join(CACHEDIR, 'repo-{}-{}-{}.solv'.format(
                     project, repo, arch))
-                solv_file_nonfree = os.path.join(CACHEDIR, 'repo-{}-{}-{}.solv'.format(
-                    project_nonfree, repo, arch))
                 solv_file_merged = os.path.join(CACHEDIR, 'repo-{}-{}-{}-merged.solv'.format(
                     project, repo, arch))
 
+                if not project_nonfree:
+                    shutil.copyfile(solv_file, solv_file_merged)
+                    continue
+
+                solv_file_nonfree = os.path.join(CACHEDIR, 'repo-{}-{}-{}.solv'.format(
+                    project_nonfree, repo, arch))
                 self.solv_merge(solv_file, solv_file_nonfree, solv_file_merged)
                 ## TODO with fh
                 #fh = open(solv_file_merged, 'w')
@@ -790,12 +797,17 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
 
     def solv_merge(self, solv1, solv2, solv_merged):
         # TODO with fh
-        fh = open(solv_merged, 'w')
-        p = subprocess.Popen(
-            ['mergesolv', solv1, solv2], stdout=fh)
-        p.communicate('\0'.join(files))
-        p.wait()
-        fh.close()
+        #fh = open(solv_merged, 'w')
+        print(solv_merged)
+        with open(solv_merged, 'w') as handle:
+            print(solv1, solv2, solv_merged)
+            p = subprocess.Popen(['mergesolv', solv1, solv2], stdout=handle)
+            p.communicate()
+            print('yo')
+        #fh.close()
+
+        if p.returncode:
+            raise Exception('failed to create merged solv file')
 
     def do_create_droplist(self, subcmd, opts, *oldsolv):
         """${cmd_name}: generate list of obsolete packages
@@ -854,11 +866,16 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
                 # mark it explicitly to avoid having 2 pools while GC is not run
                 del pool
 
+        ofh = sys.stdout
+        if self.options.output_dir:
+            name = os.path.join(self.options.output_dir, 'obsoletepackages.inc')
+            ofh = open(name, 'w')
+
         for reponame in sorted(set(drops.values())):
-            print("<!-- %s -->" % reponame)
+            print("<!-- %s -->" % reponame, file=ofh)
             for p in sorted(drops):
                 if drops[p] != reponame: continue
-                print("  <obsoletepackage>%s</obsoletepackage>" % p)
+                print("  <obsoletepackage>%s</obsoletepackage>" % p, file=ofh)
 
     @cmdln.option('--overwrite', action='store_true', help='overwrite if output file exists')
     def do_dump_solv(self, subcmd, opts, baseurl):
@@ -886,7 +903,7 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
             name = '{}/{}.solv'.format(self.options.output_dir, build)
             if not opts.overwrite and os.path.exists(name):
                 logger.info("%s exists", name)
-                return
+                return name
             ofh = open(name + '.new', 'w')
 
         pool = solv.Pool()
@@ -1153,10 +1170,23 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
         self.do_update('update', opts)
         nonfree = target_config.get('nonfree')
         if nonfree and drop_list:
+            print('-> do_update nonfree')
             opts_nonfree = copy.deepcopy(opts)
             opts_nonfree.project = nonfree
+            print(opts.project, opts_nonfree.project)
+            self.options.repos_ = self.options.repos
+            self.options.repos = ['/'.join([nonfree, main_repo])]
+            self.postoptparse()
+            print(self.options.repos)
             self.do_update('update', opts_nonfree)
-            self.do_update_merge('update_merge', opts)
+            self.options.repos = self.options.repos_
+            self.postoptparse()
+        #else:
+            #shutil.copyfile()
+
+        print('-> do_update_merge')
+        #self.do_update_merge('update_merge', opts)
+        # TODO re-enable
 
         print('-> do_solve')
         opts.ignore_unresolvable = bool(target_config.get('pkglistgen-ignore-unresolvable'))
@@ -1168,7 +1198,7 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
 
         if drop_list:
             cache_dir_solv = save_cache_path('opensuse-packagelists', 'solv-archive')
-            solv_prior = self.solv_cache_init(apiurl, cache_dir_solv, target_project, target_config)
+            solv_prior = self.solv_cache_init(apiurl, cache_dir_solv, target_project, opts)
             # TODO condition related to target
             # checkout package-lists repo (and include sync using the issue-diff tool)
             # generate the urls for both repos a various for such a thing?
@@ -1186,7 +1216,9 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
 
             solv_prior = set(solv_prior)
             cache_dir_solv_current = os.path.join(cache_dir_solv, target_project)
-            solv_prior.update(glob.glob(os.path.join(cache_dir_solv_current, '*.solv')))
+            solv_prior.update(glob.glob(os.path.join(cache_dir_solv_current, '*-merged.solv')))
+            for solv in solv_prior:
+                print(solv.replace('/home/jberry/.cache/opensuse-packagelists/solv-archive/openSUSE:Leap:15.0/', ''))
             print(solv_prior)
 
             print('-> do_create_droplist')
@@ -1224,7 +1256,7 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
             self.build_stub(release_dir, 'spec')
             self.commit_package(release_dir)
 
-    def solv_cache_init(self, apiurl, cache_dir_solv, target_project, target_config):
+    def solv_cache_init(self, apiurl, cache_dir_solv, target_project, opts):
         #if not os.path.exists(cache_dir_solv):
             #os.makedirs(cache_dir_solv)
         #self.options.output_dir = cache_dir_solv
@@ -1240,33 +1272,48 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
             #config = Config(target_project)
             config = Config(project)
             apiurl = conf.config['apiurl']
-            api = StagingAPI(apiurl, target_project)
-            config.apply_remote(api)
-            target_config = conf.config[target_project]
+            #api = StagingAPI(apiurl, project)
+            #config.apply_remote(api)
+            target_config = conf.config[project]
 
             baseurl = target_config.get('download-baseurl')
             print(baseurl)
             if not baseurl:
                 continue
 
-            urls = [urlparse.urljoin(baseurl, 'repo/oss')]
+            urls = [urlparse.urljoin(baseurl, 'repo/oss/')]
             if target_config.get('nonfree'):
-                urls.append(urlparse.urljoin(baseurl, 'repo/non-oss'))
+                urls.append(urlparse.urljoin(baseurl, 'repo/non-oss/'))
 
             names = []
             for url in urls:
+                print(url)
                 print('-> do_dump_solv')
                 self.options.output_dir = os.path.join(cache_dir_solv, project)
                 if not os.path.exists(self.options.output_dir):
                     os.makedirs(self.options.output_dir)
+                opts.overwrite = False
                 names.append(self.do_dump_solv('dump_solv', opts, url))
 
+            if not len(names):
+                print('wtf')
+                continue
+
+            print(names)
+            merged = names[0].replace('.solv', '-merged.solv')
             if len(names) == 2:
-                merged = names[0].replace('.solv', '-merged.solv')
                 self.solv_merge(names[0], names[1], merged)
-                prior.append(merged)
             else:
-                prior.append(names[0])
+                #prior.append(names[0])
+                shutil.copyfile(names[0], merged)
+            prior.append(merged)
+
+            #if len(names) == 2:
+                #merged = names[0].replace('.solv', '-merged.solv')
+                #self.solv_merge(names[0], names[1], merged)
+                #prior.append(merged)
+            #else:
+                #prior.append(names[0])
 
         return prior
 
