@@ -861,7 +861,7 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
                 print("  <obsoletepackage>%s</obsoletepackage>" % p)
 
     @cmdln.option('--overwrite', action='store_true', help='overwrite if output file exists')
-    def do_dump_solv(self, subcmd, opts, *baseurl):
+    def do_dump_solv(self, subcmd, opts, baseurl):
         """${cmd_name}: fetch repomd and dump solv
 
         If an output directory is specified, a file named according
@@ -881,16 +881,9 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
         name = None
         ofh = sys.stdout
         if self.options.output_dir:
-            url = urlparse.urljoin(baseurl, 'media.1/media')
-            with requests.get(url) as media:
-                for i, line in enumerate(media.iter_lines()):
-                    if i != 1:
-                        continue
-                    name = line
-            if name is None or '-Build' not in name:
-                raise Exception('media.1/media includes no build number')
-
-            name = '{}/{}.solv'.format(self.options.output_dir, name)
+            build, repo_style = self.dump_solv_build(baseurl)
+            print(build)
+            name = '{}/{}.solv'.format(self.options.output_dir, build)
             if not opts.overwrite and os.path.exists(name):
                 logger.info("%s exists", name)
                 return
@@ -901,16 +894,22 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
 
         repo = pool.add_repo(''.join(random.choice(string.letters) for _ in range(5)))
         f = tempfile.TemporaryFile()
-        url = urlparse.urljoin(baseurl, 'repodata/repomd.xml')
+        path_prefix = 'suse/' if name and repo_style == 'build' else ''
+        #if name and repo_style == 'build':
+            #path = 'suse/' + path
+        url = urlparse.urljoin(baseurl, path_prefix + 'repodata/repomd.xml')
+        print(url, path_prefix, repo_style)
         repomd = requests.get(url)
+        print(repomd.status_code)
         ns = { 'r': 'http://linux.duke.edu/metadata/repo' }
         root = ET.fromstring(repomd.content)
         location = root.find('.//r:data[@type="primary"]/r:location', ns).get('href')
         f.write(repomd.content)
         os.lseek(f.fileno(), 0, os.SEEK_SET)
         repo.add_repomdxml(f, 0)
-        url = urlparse.urljoin(baseurl, location)
+        url = urlparse.urljoin(baseurl, path_prefix + location)
         with requests.get(url, stream=True) as primary:
+            print(url)
             content = gzip.GzipFile(fileobj=StringIO(primary.content))
             os.lseek(f.fileno(), 0, os.SEEK_SET)
             f.write(content.read())
@@ -923,6 +922,26 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
         if name is not None:
             os.rename(name + '.new', name)
             return name
+
+    def dump_solv_build(self, baseurl):
+        url = urlparse.urljoin(baseurl, 'media.1/media')
+        with requests.get(url) as media:
+            for i, line in enumerate(media.iter_lines()):
+                if i != 1:
+                    continue
+                name = line
+
+        if name is not None and '-Build' in name:
+            return name, 'media'
+
+        url = urlparse.urljoin(baseurl, 'media.1/build')
+        with requests.get(url) as build:
+            name = build.content.strip()
+
+        if name is not None and '-Build' in name:
+            return name, 'build'
+
+        raise Exception('media.1/{media,build} includes no build number')
 
     @cmdln.option('--ignore-unresolvable', action='store_true', help='ignore unresolvable and missing packges')
     @cmdln.option('--ignore-recommended', action='store_true', help='do not include recommended packages automatically')
@@ -1165,6 +1184,11 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
                 #self.options.output_dir = packagelists_path
                 #self.do_dump_solv('dump_solv', opts, baseurl)
 
+            solv_prior = set(solv_prior)
+            cache_dir_solv_current = os.path.join(cache_dir_solv, target_project)
+            solv_prior.update(glob.glob(os.path.join(cache_dir_solv_current, '*.solv')))
+            print(solv_prior)
+
             print('-> do_create_droplist')
             self.options.output_dir = product_dir # TODO could place the solv_cache_init() above to avoid this
             self.do_create_droplist('create_droplist', opts, *solv_prior)
@@ -1201,9 +1225,9 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
             self.commit_package(release_dir)
 
     def solv_cache_init(self, apiurl, cache_dir_solv, target_project, target_config):
-        if not os.path.exists(cache_dir_solv):
-            os.makedirs(cache_dir_solv)
-        self.options.output_dir = cache_dir_solv
+        #if not os.path.exists(cache_dir_solv):
+            #os.makedirs(cache_dir_solv)
+        #self.options.output_dir = cache_dir_solv
 
         from osclib.util import project_list_family_prior
         prior = []
@@ -1225,13 +1249,16 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
             if not baseurl:
                 continue
 
-            urls = [baseurl + '/repo/oss']
+            urls = [urlparse.urljoin(baseurl, 'repo/oss')]
             if target_config.get('nonfree'):
-                urls.append(baseurl + '/repo/non-oss')
+                urls.append(urlparse.urljoin(baseurl, 'repo/non-oss'))
 
             names = []
             for url in urls:
                 print('-> do_dump_solv')
+                self.options.output_dir = os.path.join(cache_dir_solv, project)
+                if not os.path.exists(self.options.output_dir):
+                    os.makedirs(self.options.output_dir)
                 names.append(self.do_dump_solv('dump_solv', opts, url))
 
             if len(names) == 2:
