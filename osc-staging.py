@@ -417,6 +417,9 @@ def do_staging(self, subcmd, opts, *args):
     with OBSLock(opts.apiurl, opts.project, reason=cmd, needed=needed) as lock:
         api = StagingAPI(opts.apiurl, opts.project)
         config.apply_remote(api)
+        
+        print(len(api.get_staging_projects()))
+        print(len(api.get_staging_projects(False)))
 
         from osclib.util import project_list_family
         from osclib.util import project_list_family_sorter

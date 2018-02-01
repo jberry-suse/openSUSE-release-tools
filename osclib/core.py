@@ -176,6 +176,7 @@ def request_age(request):
     return datetime.utcnow() - created
 
 def project_list_prefix(apiurl, prefix):
+    """Get a list of project with the same prefix."""
     query = {'match': 'starts-with(@name, "{}")'.format(prefix)}
     url = makeurl(apiurl, ['search', 'project', 'id'], query)
     root = ETL.parse(http_GET(url)).getroot()
