@@ -1218,8 +1218,9 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
             cache_dir_solv_current = os.path.join(cache_dir_solv, target_project)
             solv_prior.update(glob.glob(os.path.join(cache_dir_solv_current, '*-merged.solv')))
             for solv in solv_prior:
-                print(solv.replace('/home/jberry/.cache/opensuse-packagelists/solv-archive/openSUSE:Leap:15.0/', ''))
-            print(solv_prior)
+                print(solv.replace(cache_dir_solv, ''))
+            #print(solv_prior)
+            #return
 
             print('-> do_create_droplist')
             self.options.output_dir = product_dir # TODO could place the solv_cache_init() above to avoid this
