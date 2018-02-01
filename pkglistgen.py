@@ -840,7 +840,7 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
                     r = pool.add_repo(prp)
                     r.add_solv(fn)
 
-                sysrepo = pool.add_repo(os.path.basename(old).replace('.repo.solv', ''))
+                sysrepo = pool.add_repo(os.path.basename(old).replace('-merged.solv', ''))
                 sysrepo.add_solv(old)
 
                 pool.createwhatprovides()
