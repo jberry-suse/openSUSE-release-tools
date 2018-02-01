@@ -51,8 +51,11 @@ DEFAULT = {
         'devel-project-enforce': 'True',
         'review-team': 'opensuse-review-team',
         'repo-checker': 'repo-checker',
+        #'pkglistgen-download-baseurl': 'http://download.opensuse.org/tumbleweed/',
+        'download-baseurl': 'http://download.opensuse.org/tumbleweed/',
+        'product-class': 'tumbleweed',
     },
-    r'openSUSE:(?P<project>Leap:[\d.]+)': {
+    r'openSUSE:(?P<project>Leap:(?P<version>[\d.]+))': {
         'staging': 'openSUSE:%(project)s:Staging',
         'staging-group': 'factory-staging',
         'staging-archs': 'i586 x86_64',
@@ -76,6 +79,16 @@ DEFAULT = {
         'pkglistgen-include-suggested': '1',
         'pkglistgen-delete-kiwis-rings': 'openSUSE-ftp-ftp-x86_64.kiwi openSUSE-cd-mini-x86_64.kiwi',
         'pkglistgen-delete-kiwis-staging': 'openSUSE-ftp-ftp-x86_64.kiwi openSUSE-cd-mini-x86_64.kiwi',
+        #'pkglistgen-download-baseurl': 'http://download.opensuse.org/distribution/leap/%(version)s/',
+        #'download-baseurl': 'http://download.opensuse.org/distribution/leap/%(version)s/',
+        'product-class': 'leap',
+        #'product-version': '%(version)s',
+        #'product-versions': ['15.0', '42.3'. '42.2'],
+        #'foo': [
+            #'42.{1,3}',
+            #'{15,}.{0,3}',
+        #],
+        #'product-prior': '',
     },
     r'SUSE:(?P<project>SLE-15.*$)': {
         'staging': 'SUSE:%(project)s:Staging',
@@ -97,6 +110,7 @@ DEFAULT = {
         'pkglistgen-archs': 'x86_64',
         'pkglistgen-ignore-unresolvable': '1',
         'pkglistgen-ignore-recommended': '1',
+        'product-class': 'sle',
     },
     r'SUSE:(?P<project>.*$)': {
         'staging': 'SUSE:%(project)s:Staging',
@@ -180,6 +194,8 @@ class Config(object):
                         defaults[k] = v % {'project': project}
                     elif isinstance(v, basestring) and '%(project.lower)s' in v:
                         defaults[k] = v % {'project.lower': project.lower()}
+                    elif isinstance(v, basestring) and '%()s' in v:
+                        pass
                     else:
                         defaults[k] = v
                 break

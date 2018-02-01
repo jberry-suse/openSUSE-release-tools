@@ -980,14 +980,14 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
 
         if opts.scope == 'target':
             self.options.repos = ['/'.join([target_project, main_repo])]
-            self.update_and_solve_target(apiurl, target_project, target_config, main_repo, opts)
+            self.update_and_solve_target(apiurl, target_project, target_config, main_repo, opts, drop_list=True)
             return
         elif opts.scope == 'ports':
             # TODO Continue supporting #1297, but should be abstracted.
             main_repo = 'ports'
             opts.project += ':Ports'
             self.options.repos = ['/'.join([opts.project, main_repo])]
-            self.update_and_solve_target(apiurl, target_project, target_config, main_repo, opts)
+            self.update_and_solve_target(apiurl, target_project, target_config, main_repo, opts, drop_list=True)
             return
         elif opts.scope == 'rings':
             opts.project = api.rings[1]
@@ -1022,7 +1022,7 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
             return
 
     def update_and_solve_target(self, apiurl, target_project, target_config, main_repo, opts,
-                                skip_release=False):
+                                skip_release=False, drop_list=False):
         print('[{}] {}/{}: update and solve'.format(opts.scope, opts.project, main_repo))
 
         group = target_config.get('pkglistgen-group', '000package-groups')
@@ -1068,6 +1068,31 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
 
         for package in checkout_list:
             checkout_package(apiurl, opts.project, package, expand_link=True, prj_dir=cache_dir)
+
+        if drop_list:
+            cache_dir_solv = save_cache_path('opensuse-packagelists', 'solv-archive')
+            self.solv_cache_init(cache_dir_solv, target_project, target_config)
+            # TODO condition related to target
+            # checkout package-lists repo (and include sync using the issue-diff tool)
+            # generate the urls for both repos a various for such a thing?
+            packagelists_path = '/home/jberry/source/package-lists/create-drop-list/{}'.format(target_project)
+            if not os.path.exists(packagelists_path):
+                os.makedirs(packagelists_path)
+            baseurl = target_config.get('pkglistgen-download-baseurl')
+            print(baseurl)
+
+            if baseurl:
+                print('-> do_dump_solv')
+                self.options.output_dir = packagelists_path
+                self.do_dump_solv('dump_solv', opts, baseurl)
+                
+                print('-> do_create_droplist')
+                self.do_create_droplist('create_droplist', opts)
+
+            #baseurl = 'http://download.opensuse.org/distribution/leap/15.0/repo/oss/'
+            #self.options.output_dir =
+            #do_dump_solv - likely want to run this separate?
+            #do_create_droplist - only if previous step resuults in new build?
 
         if not skip_release:
             self.unlink_all_except(release_dir)
@@ -1116,6 +1141,15 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
             self.multibuild_from_glob(release_dir, '*.spec')
             self.build_stub(release_dir, 'spec')
             self.commit_package(release_dir)
+
+    def solv_cache_init(self, cache_dir_solv, target_project, target_config):
+        if not os.path.exists(cache_dir_solv):
+            os.makedirs(cache_dir_solv)
+        
+        target_config.get('product-class')
+    
+    def product_class_previous(self, product_class, product):
+        
 
     def move_list(self, file_list, destination):
         for name in file_list:

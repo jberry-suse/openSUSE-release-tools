@@ -418,6 +418,22 @@ def do_staging(self, subcmd, opts, *args):
         api = StagingAPI(opts.apiurl, opts.project)
         config.apply_remote(api)
 
+        from osclib.core import project_list_family
+        from osclib.core import project_list_family_sorter
+        projects = project_list_family(api.apiurl, api.project)
+        s = sorted(projects, key=project_list_family_sorter, reverse=True)
+        print(projects)
+        print('\n'.join(s))
+        
+        projects = project_list_family(api.apiurl, 'SUSE:SLE-15:GA')
+        s = sorted(projects, key=project_list_family_sorter, reverse=True)
+        print(projects)
+        print('\n'.join(s))
+        #from osclib.core import project_list_by_prefix
+        #projects = project_list_by_prefix(api.apiurl, 'openSUSE:Leap:')
+        #print(len(projects))
+        return
+
         # call the respective command and parse args by need
         if cmd == 'check':
             if len(args) == 1:

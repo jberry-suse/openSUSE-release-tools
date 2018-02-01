@@ -2,13 +2,18 @@
 
 import argparse
 from datetime import datetime
+from datetime import timedelta
+import gzip
+import io
 from osc import conf
 from osc.core import ET
 from osc.core import search
 from osc.core import xpath_join
 from osclib.comments import CommentAPI
+from osclib.conf import Config
 from osclib.core import request_age
 from osclib.memoize import memoize
+import requests as r
 import sys
 
 def print_debug(message):
@@ -31,8 +36,33 @@ def check_comment(apiurl, bot, **kwargs):
 
     return False
 
+def check_announcer(project):
+    Config(project)
+    baseurl = conf.config[project].get('download-baseurl')
+
 def check(apiurl, entity, entity_type='group', comment=False, bot=None,
           threshold=2 * 3600, threshold_require=True):
+    if entity == 'announcer':
+        print(Config('openSUSE:Factory').conf.config)
+        return
+        # TODO version and both target projects
+        # TODO pontifex part
+        #from factory_pacakge_news.announcer import config_defaults
+        #'to': 'opensuse-factory@opensuse.org',
+        now = datetime.utcnow()
+        previous_month = now.replace(day=1) - timedelta(days=2)
+        for month in (now, previous_month):
+            #year = now.year
+            #month = now.month
+            url = 'https://lists.opensuse.org/{list}/{list}-{year}-{month}.mbox.gz'.format(
+                list='opensuse-factory', year=month.year, month=month.strftime('%m'))
+            print(url)
+            response = r.get(url)
+            with gzip.GzipFile(fileobj=io.BytesIO(response.content)) as handle:
+                if 'New Tumbleweed snapshot {version} released!'.format(version='20171231') in handle.read():
+                    print('yap')
+            return
+
     queries = {'request': {'limit': 1000, 'withfullhistory': 1}}
     xpath = 'state[@name="new"] or state[@name="review"]'
 
@@ -101,14 +131,15 @@ def status(apiurl):
     # all requests accepted are returned which is not useful.
     # TODO legal-auto, does not make comments so pending the above.
     bots = [
+        ['announcer'],
         # No open requests older than 2 hours.
-        ['factory-auto'],
-        # No open requests older than 2 hours or all old requests have comment.
-        ['leaper', 'user', True, 'Leaper'],
-        # As long as some comment made in last 6 hours.
-        ['repo-checker', 'user', 'project', 'RepoChecker', 6 * 3600, False],
-        # Different algorithm, any staging in last 24 hours.
-        ['staging-bot', 'user', False, None, 24 * 3600],
+        #['factory-auto'],
+        ## No open requests older than 2 hours or all old requests have comment.
+        #['leaper', 'user', True, 'Leaper'],
+        ## As long as some comment made in last 6 hours.
+        #['repo-checker', 'user', 'project', 'RepoChecker', 6 * 3600, False],
+        ## Different algorithm, any staging in last 24 hours.
+        #['staging-bot', 'user', False, None, 24 * 3600],
     ]
 
     all_alive = True
@@ -121,6 +152,19 @@ def status(apiurl):
     return all_alive
 
 def main(args):
+    #from calendar import Calendar
+    #import calendar
+
+    ##Calendar
+    #print(calendar.monthrange(2018, 1))
+    #now = datetime.utcnow()
+    #print(now)
+    #from datetime import timedelta
+    #previous = now.replace(day=1) - timedelta(days=2)
+    #print(now)
+    #print(previous)
+    #return
+    
     conf.get_config(override_apiurl=args.apiurl)
     conf.config['debug'] = args.debug
     apiurl = conf.config['apiurl']
