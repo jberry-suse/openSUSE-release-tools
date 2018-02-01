@@ -763,8 +763,8 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
 
         config = Config(target_project)
         apiurl = conf.config['apiurl']
-        api = StagingAPI(apiurl, target_project)
-        config.apply_remote(api)
+        #api = StagingAPI(apiurl, target_project)
+        #config.apply_remote(api)
         target_config = conf.config[target_project]
 
         project_nonfree = target_config.get('nonfree')
@@ -1185,8 +1185,7 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
             #shutil.copyfile()
 
         print('-> do_update_merge')
-        #self.do_update_merge('update_merge', opts)
-        # TODO re-enable
+        self.do_update_merge('update_merge', opts)
 
         print('-> do_solve')
         opts.ignore_unresolvable = bool(target_config.get('pkglistgen-ignore-unresolvable'))
