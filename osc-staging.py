@@ -432,9 +432,12 @@ def do_staging(self, subcmd, opts, *args):
         s = sorted(projects, key=project_list_family_sorter, reverse=True)
         print(projects)
         print('\n'.join(s))
-        #from osclib.core import project_list_by_prefix
-        #projects = project_list_by_prefix(api.apiurl, 'openSUSE:Leap:')
+
+        from osclib.core import project_list_prefix
+        #projects = project_list_prefix(api.apiurl, 'openSUSE:Leap:')
+        projects = project_list_prefix(api.apiurl, 'SUSE')
         #print(len(projects))
+        print(projects)
         return
 
         # call the respective command and parse args by need

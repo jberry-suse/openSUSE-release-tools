@@ -1,5 +1,6 @@
 from osclib.core import project_list_prefix
 
+
 def project_list_family(apiurl, project):
     """
     Determine the list of available projects within the same product family.
