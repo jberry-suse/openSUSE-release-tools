@@ -22,7 +22,7 @@ def project_list_family(apiurl, project):
 
     return filter(family_filter, projects)
 
-def project_list_family_prior(apiurl, project):
+def project_list_family_prior(apiurl, project, include_self=False):
     """
     Determine the available projects within the same product family released
     prior to the specified project.
@@ -31,10 +31,13 @@ def project_list_family_prior(apiurl, project):
     past = False
     prior = []
     for entry in sorted(projects, key=project_list_family_sorter, reverse=True):
-        if past:
-            prior.append(entry)
         if entry == project:
             past = True
+            if not include_self:
+                continue
+
+        if past:
+            prior.append(entry)
 
     return prior
 

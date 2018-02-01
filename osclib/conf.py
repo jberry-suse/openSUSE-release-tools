@@ -80,7 +80,7 @@ DEFAULT = {
         'pkglistgen-delete-kiwis-rings': 'openSUSE-ftp-ftp-x86_64.kiwi openSUSE-cd-mini-x86_64.kiwi',
         'pkglistgen-delete-kiwis-staging': 'openSUSE-ftp-ftp-x86_64.kiwi openSUSE-cd-mini-x86_64.kiwi',
         #'pkglistgen-download-baseurl': 'http://download.opensuse.org/distribution/leap/%(version)s/',
-        #'download-baseurl': 'http://download.opensuse.org/distribution/leap/%(version)s/',
+        'download-baseurl': 'http://download.opensuse.org/distribution/leap/%(version)s/',
         'product-class': 'leap',
         #'product-version': '%(version)s',
         #'product-versions': ['15.0', '42.3'. '42.2'],
@@ -194,8 +194,8 @@ class Config(object):
                         defaults[k] = v % {'project': project}
                     elif isinstance(v, basestring) and '%(project.lower)s' in v:
                         defaults[k] = v % {'project.lower': project.lower()}
-                    elif isinstance(v, basestring) and '%()s' in v:
-                        pass
+                    elif isinstance(v, basestring) and '%(version)s' in v:
+                        defaults[k] = v % {'version': match.group('version')}
                     else:
                         defaults[k] = v
                 break

@@ -64,6 +64,9 @@ class TestUtil(unittest.TestCase):
         self.assertEqual(projects[2], 'SUSE:SLE-15:GA')
 
     def test_project_list_family_prior(self):
+        projects = project_list_family_prior(None, 'openSUSE:Leap:15.0', include_self=True)
+        self.assertEqual(projects, ['openSUSE:Leap:15.0', 'openSUSE:Leap:42.3', 'openSUSE:Leap:42.2'])
+
         projects = project_list_family_prior(None, 'openSUSE:Leap:15.0')
         self.assertEqual(projects, ['openSUSE:Leap:42.3', 'openSUSE:Leap:42.2'])
 

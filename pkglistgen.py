@@ -754,6 +754,49 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
                 fh.close()
         return global_update
 
+    def do_update_merge(self, subcmd, opts):
+        # TODO refactor config
+        target_project = opts.project
+
+        config = Config(target_project)
+        apiurl = conf.config['apiurl']
+        api = StagingAPI(apiurl, target_project)
+        config.apply_remote(api)
+        target_config = conf.config[target_project]
+
+        project_nonfree = target_config.get('nonfree')
+        if not project_nonfree:
+            raise cmdln.CmdlnUserError('project does not have a nonfree project to merge')
+
+        for prp in self.tool.repos:
+            project, repo = prp.split('/')
+            for arch in self.tool.architectures:
+                #cache_dir = os.path.join(CACHEDIR, target_project, repo, arch)
+                solv_file = os.path.join(CACHEDIR, 'repo-{}-{}-{}.solv'.format(
+                    project, repo, arch))
+                solv_file_nonfree = os.path.join(CACHEDIR, 'repo-{}-{}-{}.solv'.format(
+                    project_nonfree, repo, arch))
+                solv_file_merged = os.path.join(CACHEDIR, 'repo-{}-{}-{}-merged.solv'.format(
+                    project, repo, arch))
+
+                self.solv_merge(solv_file, solv_file_nonfree, solv_file_merged)
+                ## TODO with fh
+                #fh = open(solv_file_merged, 'w')
+                #p = subprocess.Popen(
+                    #['mergesolv', solv_file, solv_file_nonfree], stdout=fh)
+                #p.communicate('\0'.join(files))
+                #p.wait()
+                #fh.close()
+
+    def solv_merge(self, solv1, solv2, solv_merged):
+        # TODO with fh
+        fh = open(solv_merged, 'w')
+        p = subprocess.Popen(
+            ['mergesolv', solv1, solv2], stdout=fh)
+        p.communicate('\0'.join(files))
+        p.wait()
+        fh.close()
+
     def do_create_droplist(self, subcmd, opts, *oldsolv):
         """${cmd_name}: generate list of obsolete packages
 
@@ -818,17 +861,23 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
                 print("  <obsoletepackage>%s</obsoletepackage>" % p)
 
     @cmdln.option('--overwrite', action='store_true', help='overwrite if output file exists')
-    def do_dump_solv(self, subcmd, opts, baseurl):
+    def do_dump_solv(self, subcmd, opts, *baseurl):
         """${cmd_name}: fetch repomd and dump solv
 
         If an output directory is specified, a file named according
         to the build is created there. Otherwise the solv file is
         dumped to stdout.
 
+        --- dumps the published builds from download.opensuse.org ---
+        --- need a different function that will generate current from downloaded ---...supposedly doing that
+        --- need to handle mergesolv ---
+
         ${cmd_usage}
         ${cmd_option_list}
         """
 
+        # TODO Handle non existant
+        # TODO Handle previous format...for at least 42.x
         name = None
         ofh = sys.stdout
         if self.options.output_dir:
@@ -873,6 +922,7 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
 
         if name is not None:
             os.rename(name + '.new', name)
+            return name
 
     @cmdln.option('--ignore-unresolvable', action='store_true', help='ignore unresolvable and missing packges')
     @cmdln.option('--ignore-recommended', action='store_true', help='do not include recommended packages automatically')
@@ -1069,31 +1119,6 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
         for package in checkout_list:
             checkout_package(apiurl, opts.project, package, expand_link=True, prj_dir=cache_dir)
 
-        if drop_list:
-            cache_dir_solv = save_cache_path('opensuse-packagelists', 'solv-archive')
-            self.solv_cache_init(cache_dir_solv, target_project, target_config)
-            # TODO condition related to target
-            # checkout package-lists repo (and include sync using the issue-diff tool)
-            # generate the urls for both repos a various for such a thing?
-            packagelists_path = '/home/jberry/source/package-lists/create-drop-list/{}'.format(target_project)
-            if not os.path.exists(packagelists_path):
-                os.makedirs(packagelists_path)
-            baseurl = target_config.get('pkglistgen-download-baseurl')
-            print(baseurl)
-
-            if baseurl:
-                print('-> do_dump_solv')
-                self.options.output_dir = packagelists_path
-                self.do_dump_solv('dump_solv', opts, baseurl)
-                
-                print('-> do_create_droplist')
-                self.do_create_droplist('create_droplist', opts)
-
-            #baseurl = 'http://download.opensuse.org/distribution/leap/15.0/repo/oss/'
-            #self.options.output_dir =
-            #do_dump_solv - likely want to run this separate?
-            #do_create_droplist - only if previous step resuults in new build?
-
         if not skip_release:
             self.unlink_all_except(release_dir)
         self.unlink_all_except(product_dir)
@@ -1107,6 +1132,12 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
 
         print('-> do_update')
         self.do_update('update', opts)
+        nonfree = target_config.get('nonfree')
+        if nonfree and drop_list:
+            opts_nonfree = copy.deepcopy(opts)
+            opts_nonfree.project = nonfree
+            self.do_update('update', opts_nonfree)
+            self.do_update_merge('update_merge', opts)
 
         print('-> do_solve')
         opts.ignore_unresolvable = bool(target_config.get('pkglistgen-ignore-unresolvable'))
@@ -1115,6 +1146,33 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
         opts.locale = target_config.get('pkglistgen-local')
         opts.locales_from = target_config.get('pkglistgen-locales-from')
         self.do_solve('solve', opts)
+
+        if drop_list:
+            cache_dir_solv = save_cache_path('opensuse-packagelists', 'solv-archive')
+            solv_prior = self.solv_cache_init(apiurl, cache_dir_solv, target_project, target_config)
+            # TODO condition related to target
+            # checkout package-lists repo (and include sync using the issue-diff tool)
+            # generate the urls for both repos a various for such a thing?
+            #packagelists_path = '/home/jberry/source/package-lists/create-drop-list/{}'.format(target_project)
+            #if not os.path.exists(packagelists_path):
+                #os.makedirs(packagelists_path)
+            #baseurl = target_config.get('pkglistgen-download-baseurl')
+            #baseurl = target_config.get('download-baseurl')
+            #print(baseurl)
+
+            #if baseurl:
+                #print('-> do_dump_solv')
+                #self.options.output_dir = packagelists_path
+                #self.do_dump_solv('dump_solv', opts, baseurl)
+
+            print('-> do_create_droplist')
+            self.options.output_dir = product_dir # TODO could place the solv_cache_init() above to avoid this
+            self.do_create_droplist('create_droplist', opts, *solv_prior)
+
+            #baseurl = 'http://download.opensuse.org/distribution/leap/15.0/repo/oss/'
+            #self.options.output_dir =
+            #do_dump_solv - likely want to run this separate?
+            #do_create_droplist - only if previous step resuults in new build?
 
         delete_products = target_config.get('pkglistgen-delete-products', '').split(' ')
         self.unlink_list(product_dir, delete_products)
@@ -1142,14 +1200,48 @@ class CommandLineInterface(ToolBase.CommandLineInterface):
             self.build_stub(release_dir, 'spec')
             self.commit_package(release_dir)
 
-    def solv_cache_init(self, cache_dir_solv, target_project, target_config):
+    def solv_cache_init(self, apiurl, cache_dir_solv, target_project, target_config):
         if not os.path.exists(cache_dir_solv):
             os.makedirs(cache_dir_solv)
-        
-        target_config.get('product-class')
-    
-    def product_class_previous(self, product_class, product):
-        
+        self.options.output_dir = cache_dir_solv
+
+        from osclib.util import project_list_family_prior
+        prior = []
+        # TODO needs to include previous verions of the current project
+        for project in project_list_family_prior(apiurl, target_project, include_self=True):
+            print(project)
+
+            #target_project = opts.project
+
+            #config = Config(target_project)
+            config = Config(project)
+            apiurl = conf.config['apiurl']
+            api = StagingAPI(apiurl, target_project)
+            config.apply_remote(api)
+            target_config = conf.config[target_project]
+
+            baseurl = target_config.get('download-baseurl')
+            print(baseurl)
+            if not baseurl:
+                continue
+
+            urls = [baseurl + '/repo/oss']
+            if target_config.get('nonfree'):
+                urls.append(baseurl + '/repo/non-oss')
+
+            names = []
+            for url in urls:
+                print('-> do_dump_solv')
+                names.append(self.do_dump_solv('dump_solv', opts, url))
+
+            if len(names) == 2:
+                merged = names[0].replace('.solv', '-merged.solv')
+                self.solv_merge(names[0], names[1], merged)
+                prior.append(merged)
+            else:
+                prior.append(names[0])
+
+        return prior
 
     def move_list(self, file_list, destination):
         for name in file_list:
