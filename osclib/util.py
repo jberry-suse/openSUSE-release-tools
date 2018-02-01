@@ -3,7 +3,7 @@ from osclib.core import project_list_prefix
 
 def project_list_family(apiurl, project):
     """
-    Determine the list of available projects within the same product family.
+    Determine the available projects within the same product family.
 
     Skips < SLE-12 due to format change.
     """
@@ -21,6 +21,22 @@ def project_list_family(apiurl, project):
     projects = project_list_prefix(apiurl, prefix)
 
     return filter(family_filter, projects)
+
+def project_list_family_prior(apiurl, project):
+    """
+    Determine the available projects within the same product family released
+    prior to the specified project.
+    """
+    projects = project_list_family(apiurl, project)
+    past = False
+    prior = []
+    for entry in sorted(projects, key=project_list_family_sorter, reverse=True):
+        if past:
+            prior.append(entry)
+        if entry == project:
+            past = True
+
+    return prior
 
 def project_list_family_sorter(project):
     """Extract key to be used as sorter (oldest to newest)."""

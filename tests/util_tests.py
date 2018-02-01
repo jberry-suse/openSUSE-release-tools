@@ -1,4 +1,5 @@
 from osclib.util import project_list_family
+from osclib.util import project_list_family_prior
 from osclib.util import project_list_family_sorter
 from osclib.util import project_list_prefix
 from osclib import util
@@ -61,3 +62,16 @@ class TestUtil(unittest.TestCase):
         projects = sorted(project_list_family(None, 'SUSE:SLE-15:GA'), key=project_list_family_sorter)
         self.assertEqual(projects[0], 'SUSE:SLE-12:GA')
         self.assertEqual(projects[2], 'SUSE:SLE-15:GA')
+
+    def test_project_list_family_prior(self):
+        projects = project_list_family_prior(None, 'openSUSE:Leap:15.0')
+        self.assertEqual(projects, ['openSUSE:Leap:42.3', 'openSUSE:Leap:42.2'])
+
+        projects = project_list_family_prior(None, 'openSUSE:Leap:42.3')
+        self.assertEqual(projects, ['openSUSE:Leap:42.2'])
+
+        projects = project_list_family_prior(None, 'SUSE:SLE-15:GA')
+        self.assertEqual(projects, ['SUSE:SLE-12-SP1:GA', 'SUSE:SLE-12:GA'])
+
+        projects = project_list_family_prior(None, 'SUSE:SLE-12-SP1:GA')
+        self.assertEqual(projects, ['SUSE:SLE-12:GA'])
