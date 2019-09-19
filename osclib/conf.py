@@ -73,6 +73,7 @@ DEFAULT = {
         'lock': 'openSUSE:%(project)s:Staging',
         'lock-ns': 'openSUSE',
         'leaper-override-group': 'leap-reviewers',
+        'originmanager-override-group': 'origin-reviewers',
         'delreq-review': '',
         'main-repo': 'standard',
         'pseudometa_package': 'openSUSE:%(project)s:Staging/dashboard',
